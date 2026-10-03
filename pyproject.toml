@@ -1,0 +1,18 @@
+[project]
+name = "quantaccelerator"
+version = "0.1.0"
+description = "A multi-agent copilot for quant research: understand a dataset, prove when each record was knowable, audit pipelines for look-ahead, and build return-blind features"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["pandas>=2.2", "numpy>=1.26", "pyarrow>=15", "matplotlib>=3.8", "pydantic>=2.6", "openai>=1.40", "pypdf>=4"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+notebook = ["jupyterlab>=4", "ipython"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

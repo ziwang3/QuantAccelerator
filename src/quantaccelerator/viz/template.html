@@ -1,0 +1,1406 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QuantAccelerator · A multi-agent helper for quant research</title>
+<style>
+/* QuantAccelerator, dark fintech theme.
+   Data colours are the dataviz reference palette's dark steps, re-validated on this surface (#0f1729): 4 categorical
+   slots pass CVD, normal-vision and 3:1 contrast. Each pipeline variant keeps one colour everywhere. Status colours are
+   reserved and always paired with an icon + label. The brand gradient is used only for brand and navigation, never
+   for data. */
+:root {
+  color-scheme: dark;
+  --bg: #070b16; --bg-2: #0a1020; --card: #0f1729; --card-2: #131d34; --card-3: #19243f;
+  --line: rgba(148,163,184,0.14); --line-2: rgba(148,163,184,0.26);
+  --text: #eaf0fa; --text-2: #a8b3c7; --muted: #6e7a92;
+  --brand-a: #6aa8ff; --brand-b: #3ee0c5; --brand: linear-gradient(135deg, #6aa8ff 0%, #3ee0c5 100%);
+  --glow: rgba(106,168,255,0.18);
+  --slot1: #3987e5; --slot2: #d95926; --slot3: #199e70; --slot4: #c98500;
+  --seq: #3987e5;
+  --good: #0ca30c; --good-text: #3fcf5a; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b; --critical-text: #ff7b7b;
+  --critical-wash: rgba(208,59,59,0.20); --neutral-wash: rgba(148,163,184,0.08);
+  --code-hl: rgba(208,59,59,0.16); --code-add: rgba(12,163,12,0.16);
+  --radius: 16px;
+  --mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Inter, Roboto, sans-serif;
+  background: radial-gradient(1200px 600px at 15% -10%, rgba(106,168,255,0.10), transparent 60%),
+              radial-gradient(900px 500px at 100% 0%, rgba(62,224,197,0.07), transparent 60%), var(--bg);
+  color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; }
+button { font: inherit; }
+
+/* ---------- top bar ---------- */
+.topbar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 28px; padding: 14px 32px;
+          background: rgba(7,11,22,0.78); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.brand .word { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+.brand .word span { background: var(--brand); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.nav { display: flex; gap: 4px; }
+.nav button { background: transparent; border: 0; color: var(--text-2); padding: 8px 14px; border-radius: 10px; cursor: pointer;
+              font-size: 14px; font-weight: 500; }
+.nav button:hover { color: var(--text); background: rgba(148,163,184,0.08); }
+.nav button[aria-current="page"] { color: var(--text); background: rgba(106,168,255,0.12); box-shadow: inset 0 0 0 1px rgba(106,168,255,0.28); }
+.topbar .spacer { flex: 1; }
+.progress { position: absolute; left: 0; bottom: -1px; height: 2px; background: var(--brand); transition: width .35s ease; }
+
+.btn { display: inline-flex; align-items: center; gap: 8px; border-radius: 12px; padding: 10px 16px; font-size: 14px;
+       font-weight: 600; cursor: pointer; border: 1px solid var(--line-2); background: rgba(148,163,184,0.06); color: var(--text); }
+.btn:hover { background: rgba(148,163,184,0.12); }
+.btn.primary { background: var(--brand); color: #04101f; border: 0; }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.small { padding: 6px 12px; font-size: 13px; border-radius: 10px; }
+
+main { max-width: 1240px; margin: 0 auto; padding: 40px 32px 24px; }
+.page { display: none; animation: fade .45s ease both; } .page.active { display: block; }
+@keyframes fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* ---------- typography ---------- */
+.eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--brand-b); margin-bottom: 14px; }
+.eyebrow .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--brand-b); margin-right: 8px; vertical-align: 2px;
+                box-shadow: 0 0 10px var(--brand-b); }
+h1 { font-size: clamp(40px, 5.2vw, 64px); line-height: 1.04; letter-spacing: -0.035em; margin: 0 0 20px; font-weight: 700; }
+h1 .grad { background: var(--brand); -webkit-background-clip: text; background-clip: text; color: transparent; }
+h2 { font-size: clamp(28px, 3.2vw, 40px); line-height: 1.12; letter-spacing: -0.025em; margin: 0 0 14px; font-weight: 700; }
+h3 { font-size: 17px; line-height: 1.3; margin: 0 0 8px; font-weight: 650; letter-spacing: -0.01em; }
+h4 { font-size: 13px; margin: 0 0 10px; font-weight: 650; color: var(--text-2); text-transform: uppercase; letter-spacing: .08em; }
+.lede { font-size: 19px; line-height: 1.55; color: var(--text-2); max-width: 820px; margin: 0 0 28px; }
+.lede.wide { max-width: none; }
+p { line-height: 1.6; color: var(--text-2); margin: 0 0 12px; }
+.muted { color: var(--muted); } .t2 { color: var(--text-2); }
+.num { font-variant-numeric: tabular-nums; }
+strong { color: var(--text); font-weight: 650; }
+
+/* ---------- layout ---------- */
+.section { margin-top: 56px; } .section:first-child { margin-top: 0; }
+.grid { display: grid; gap: 18px; }
+.g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 980px) { .g2, .g3, .g4 { grid-template-columns: 1fr; } }
+.card { background: linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.01)), var(--card);
+        border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; position: relative; }
+.card.hi { border-color: rgba(106,168,255,0.35); box-shadow: 0 0 0 1px rgba(106,168,255,0.10), 0 20px 60px -20px var(--glow); }
+.card .icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; margin-bottom: 16px;
+              background: rgba(106,168,255,0.10); border: 1px solid rgba(106,168,255,0.25); color: var(--brand-a); }
+.card .icon svg { width: 20px; height: 20px; }
+.kpi { font-size: 44px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; margin: 6px 0 8px; }
+.hero { padding: 36px 0 12px; }
+.hero-grid { display: grid; grid-template-columns: 1.25fr 1fr; gap: 48px; align-items: center; }
+@media (max-width: 980px) { .hero-grid { grid-template-columns: 1fr; } }
+.cta { display: flex; gap: 12px; flex-wrap: wrap; }
+.divider { height: 1px; background: var(--line); margin: 40px 0; }
+.quote { border-left: 2px solid var(--brand-b); padding: 6px 0 6px 18px; color: var(--text); font-size: 18px; line-height: 1.5; }
+
+/* badges & status */
+.badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+         border-radius: 99px; padding: 4px 10px; border: 1px solid var(--line-2); color: var(--text-2); white-space: nowrap; }
+.badge.built { color: #9fe8d9; border-color: rgba(62,224,197,0.40); background: rgba(62,224,197,0.08); }
+.badge.planned { color: var(--muted); border-style: dashed; }
+.badge.progress { color: #bcd6ff; border-color: rgba(106,168,255,0.40); background: rgba(106,168,255,0.08); }
+.status { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; color: var(--text); }
+.status .ico { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; color: #fff; font-size: 11px; font-weight: 800; flex: none; }
+.st-good .ico { background: var(--good); } .st-critical .ico { background: var(--critical); }
+.st-serious .ico { background: var(--serious); } .st-warning .ico { background: var(--warning); color: #111; }
+.key { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 8px; vertical-align: 0; flex: none; }
+
+/* ---------- framework diagram ---------- */
+.lane { display: grid; grid-template-columns: 170px 1fr; gap: 20px; align-items: center; padding: 22px 0; border-top: 1px solid var(--line); }
+.lane:first-of-type { border-top: 0; }
+.lane .lname { font-weight: 650; } .lane .lname small { display: block; color: var(--muted); font-weight: 500; margin-top: 4px; font-size: 12px; line-height: 1.4; }
+.flow { display: flex; align-items: stretch; gap: 0; flex-wrap: wrap; row-gap: 14px; }
+.fnode { background: var(--card-2); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; min-width: 128px; max-width: 170px; }
+.fnode .n { font-size: 13px; font-weight: 650; } .fnode .o { font-size: 11px; color: var(--muted); margin-top: 3px; font-family: var(--mono); }
+.fnode.gate { border-radius: 99px; min-width: auto; padding: 10px 14px; display: flex; align-items: center; gap: 6px; }
+.fnode.gate .n { font-size: 12px; }
+.fsep { display: flex; align-items: center; color: var(--muted); padding: 0 8px; font-size: 14px; }
+.agent { display: flex; flex-direction: column; gap: 8px; }
+.agent .writes { font-family: var(--mono); font-size: 12px; color: var(--brand-a); }
+
+/* ---------- module stepper ---------- */
+.modhead { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap; margin-bottom: 28px; }
+.steps { display: flex; gap: 6px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 5px; }
+.steps button { border: 0; background: transparent; color: var(--text-2); padding: 8px 14px; border-radius: 10px; cursor: pointer; font-size: 13px; font-weight: 600; }
+.steps button .i { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; font-size: 11px; margin-right: 6px;
+                   background: rgba(148,163,184,0.12); color: var(--text-2); }
+.steps button[aria-current="step"] { background: var(--card-3); color: var(--text); }
+.steps button[aria-current="step"] .i { background: var(--brand); color: #04101f; }
+.step { display: none; } .step.active { display: block; animation: fade .4s ease both; }
+
+/* data used panel */
+.facts { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 1px; background: var(--line); border-radius: 12px; overflow: hidden; }
+@media (max-width: 980px) { .facts { grid-template-columns: 1fr 1fr; } }
+.fact { background: var(--card-2); padding: 14px 16px; }
+.fact .v { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; } .fact .l { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+.variant { display: flex; gap: 12px; align-items: flex-start; }
+.variant .sw { width: 4px; align-self: stretch; border-radius: 4px; flex: none; }
+.variant code { font-family: var(--mono); font-size: 12px; color: var(--text-2); background: rgba(148,163,184,0.08); padding: 2px 6px; border-radius: 6px; }
+
+/* ---------- charts ---------- */
+svg text { fill: var(--text-2); font-size: 12px; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+svg .t1 { fill: var(--text); } svg .tm { fill: var(--muted); }
+svg .halo { paint-order: stroke; stroke: var(--card); stroke-width: 6px; stroke-linejoin: round; }
+svg .grid { stroke: rgba(148,163,184,0.12); stroke-width: 1; } svg .axis { stroke: rgba(148,163,184,0.30); stroke-width: 1; }
+svg [tabindex]:focus { outline: none; } svg [tabindex]:focus-visible circle:last-child, svg [tabindex]:focus-visible path { stroke: var(--text); stroke-width: 2; }
+.tooltip { position: fixed; pointer-events: none; background: rgba(15,23,41,0.96); border: 1px solid var(--line-2); border-radius: 10px;
+           padding: 10px 12px; font-size: 12px; box-shadow: 0 12px 40px rgba(0,0,0,.45); z-index: 30; max-width: 340px; display: none; backdrop-filter: blur(8px); }
+.tooltip .v { font-weight: 700; color: var(--text); font-size: 14px; } .tooltip .l { color: var(--text-2); }
+.tooltip .row + .row { margin-top: 4px; }
+details.data { margin-top: 14px; font-size: 13px; } details.data summary { cursor: pointer; color: var(--muted); }
+table { border-collapse: collapse; font-size: 13px; width: 100%; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; }
+tr:last-child td { border-bottom: 0; }
+
+/* ---------- KPI tiles ---------- */
+.tile { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; }
+.tile .label { color: var(--text-2); font-size: 13px; font-weight: 500; }
+.tile .value { font-size: 46px; font-weight: 700; margin: 8px 0 6px; line-height: 1; letter-spacing: -0.03em; }
+.tile .delta { font-size: 13px; color: var(--text-2); } .tile .delta.up { color: var(--good-text); }
+
+/* ---------- replay ---------- */
+.replay { display: grid; grid-template-columns: 290px minmax(0,1fr); gap: 20px; }
+@media (max-width: 980px) { .replay { grid-template-columns: 1fr; } }
+.chain { display: flex; flex-direction: column; gap: 0; position: relative; }
+.node { border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; background: var(--card-2); transition: all .25s ease; position: relative; }
+.node + .link { height: 18px; margin-left: 26px; border-left: 2px dashed var(--line-2); }
+.node .nm { font-weight: 650; font-size: 14px; display: flex; align-items: center; gap: 10px; }
+.node .av { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; font-size: 12px; font-weight: 800;
+            background: rgba(148,163,184,0.12); color: var(--text-2); flex: none; }
+.node .desc { color: var(--muted); font-size: 12px; margin: 6px 0 0 36px; line-height: 1.4; }
+.node .ctr { color: var(--text-2); font-size: 12px; margin: 6px 0 0 36px; font-variant-numeric: tabular-nums; }
+.node .pill { margin-left: auto; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; border-radius: 99px; padding: 3px 8px;
+              background: rgba(148,163,184,0.10); color: var(--muted); }
+.node.active { border-color: rgba(106,168,255,0.6); box-shadow: 0 0 0 4px rgba(106,168,255,0.10), 0 10px 40px -10px var(--glow); }
+.node.active .av { background: var(--brand); color: #04101f; }
+.node.active .pill { background: rgba(106,168,255,0.18); color: #cfe0ff; }
+.node.done .av { background: rgba(62,224,197,0.16); color: var(--brand-b); }
+.node.done .pill { background: rgba(12,163,12,0.18); color: var(--good-text); }
+.node.fail .pill { background: rgba(208,59,59,0.22); color: var(--critical-text); }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.controls select { background: var(--card-2); color: var(--text); border: 1px solid var(--line-2); border-radius: 10px; padding: 6px 10px; font: inherit; font-size: 13px; }
+.controls input[type=range] { flex: 1; min-width: 140px; accent-color: var(--brand-a); }
+.clock { font-size: 12px; color: var(--muted); min-width: 180px; text-align: right; font-variant-numeric: tabular-nums; }
+.feed { height: 540px; overflow-y: auto; border: 1px solid var(--line); border-radius: 14px; background: rgba(7,11,22,0.55); padding: 10px; }
+.feed::-webkit-scrollbar { width: 8px; } .feed::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 8px; }
+.ev { border-radius: 10px; padding: 9px 12px; margin: 4px 0; font-size: 13px; line-height: 1.45; border: 1px solid transparent; }
+.ev .h { display: flex; gap: 10px; align-items: baseline; }
+.ev .who { font-size: 10px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; min-width: 62px; }
+.ev .t { margin-left: auto; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ev .body { color: var(--text-2); margin-top: 3px; }
+.ev.tool .body { font-family: var(--mono); font-size: 12px; color: #b9c7e0; }
+.ev.big { border-color: var(--line); background: var(--card-2); }
+.ev.alert { border-color: rgba(208,59,59,0.45); background: linear-gradient(90deg, rgba(208,59,59,0.14), transparent 70%), var(--card-2); }
+.ev.ok { border-color: rgba(12,163,12,0.35); background: linear-gradient(90deg, rgba(12,163,12,0.10), transparent 70%), var(--card-2); }
+.ev.new { animation: pop .35s ease-out; }
+@keyframes pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.chip { font-family: var(--mono); font-size: 11px; background: rgba(106,168,255,0.08); border: 1px solid rgba(106,168,255,0.22); border-radius: 6px; padding: 1px 7px; color: #bcd6ff; }
+.ev details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-top: 4px; }
+pre { white-space: pre-wrap; word-break: break-word; font-family: var(--mono); font-size: 12px; background: rgba(7,11,22,0.7); border: 1px solid var(--line);
+      border-radius: 10px; padding: 10px 12px; margin: 8px 0 0; max-height: 340px; overflow: auto; color: #cdd7ea; }
+
+/* ---------- code ---------- */
+.code { font-family: var(--mono); font-size: 13px; background: rgba(7,11,22,0.75); border: 1px solid var(--line); border-radius: 12px; padding: 10px 0; overflow-x: auto; }
+.code .ln { display: flex; white-space: pre; padding: 1px 14px; color: #c9d4e8; }
+.code .ln .no { color: #4b5770; width: 34px; flex: none; text-align: right; margin-right: 16px; user-select: none; }
+.code .ln.hl { background: var(--code-hl); box-shadow: inset 3px 0 0 var(--critical); }
+.code .ln.add { background: var(--code-add); box-shadow: inset 3px 0 0 var(--good); }
+.code .ln .tag { margin-left: 18px; font-family: system-ui, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: .04em; }
+
+/* ---------- data research ---------- */
+.figcard { background: #fff; border-radius: 10px; padding: 6px; margin-top: 10px; }
+.figcard img { width: 100%; display: block; }
+.sev { font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; border-radius: 99px; padding: 3px 8px; }
+.sev.info { background: rgba(106,168,255,0.14); color: #bcd6ff; } .sev.warning { background: rgba(250,178,25,0.16); color: #f7c75c; }
+.sev.issue { background: rgba(208,59,59,0.20); color: var(--critical-text); }
+.steplog { counter-reset: s; list-style: none; padding: 0; margin: 0; }
+.steplog li { counter-increment: s; padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--text-2); }
+.steplog li::before { content: counter(s); display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+                      background: rgba(148,163,184,0.12); color: var(--text-2); font-size: 11px; margin-right: 10px; }
+
+/* ---------- roadmap ---------- */
+.road { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 18px; }
+@media (max-width: 980px) { .road { grid-template-columns: 1fr; } }
+.road .card ul { margin: 10px 0 0; padding-left: 18px; color: var(--text-2); line-height: 1.7; font-size: 14px; }
+
+/* ---------- explorer ---------- */
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+.tabs button { border: 1px solid var(--line-2); background: var(--card); color: var(--text-2); border-radius: 99px; padding: 8px 14px;
+               font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; }
+.tabs button[aria-pressed="true"] { color: var(--text); border-color: rgba(106,168,255,0.6); background: rgba(106,168,255,0.10); }
+.stack > * + * { margin-top: 18px; }
+
+footer { max-width: 1240px; margin: 48px auto 0; padding: 22px 32px 36px; border-top: 1px solid var(--line); display: flex; align-items: center;
+         justify-content: space-between; color: var(--muted); font-size: 13px; }
+footer .word { font-weight: 700; color: var(--text-2); }
+footer .word span { background: var(--brand); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.navfoot { display: flex; justify-content: space-between; align-items: center; margin-top: 36px; }
+.kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-2); border-radius: 6px; padding: 1px 6px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand" id="brand" title="QuantAccelerator home">
+    <span class="word">Quant<span>Accelerator</span></span>
+  </div>
+  <nav class="nav" id="nav" aria-label="Sections"></nav>
+  <span class="spacer"></span>
+  <button class="btn small" id="btn-explorer">Run explorer</button>
+  <div class="progress" id="progress"></div>
+</header>
+<main id="app"></main>
+<footer><span class="word">Quant<span>Accelerator</span> · A multi-agent helper for quant research</span><span id="foot-right"></span></footer>
+<div class="tooltip" id="tip" role="status"></div>
+
+<script id="demo-data" type="application/json">/*__DATA__*/</script>
+<script>
+"use strict";
+const D = JSON.parse(document.getElementById("demo-data").textContent);
+const PRODUCT = "QuantAccelerator";
+const MODS = D.modules;                                   // one entry per case study (form4, alfred, ...)
+const MOD = Object.fromEntries(MODS.map(m => [m.id, m]));
+const F4 = MOD.form4;
+const AGENTS = {profiler: ["P", "Data Profiler", "Reads raw tables and the vendor's docs, writes a DatasetCard"],
+                overview: ["O", "Overview", "Writes what the dataset is: publisher, market, entities, values"],
+                data_research: ["R", "Data Research Agent", "Studies coverage, missing data, distributions and breaks; proposes cleaning"],
+                research_eda_survey: ["S", "EDA Survey", "Characterizes every raw field against liquidity, size and sector"],
+                research_eda_ideas: ["I", "EDA Ideas", "Brainstorms feature ideas and translates the researcher's"],
+                research_eda: ["E", "Research EDA Agent", "Builds and characterizes the approved ideas, proposes features"],
+                g2: ["G2", "Human gate", "A person reviews the feature ideas"],
+                g3: ["G3", "Human gate", "A person freezes the candidate feature set"],
+                pit_agent: ["T", "PIT Agent", "Infers when each record became public and tradable"],
+                g1: ["G1", "Human gate", "A person signs off the availability rule"],
+                auditor: ["A", "Code Auditor", "Finds the leak, quantifies it, patches and verifies"]};
+const SERIES = {PAYEMS: "Payrolls", UNRATE: "Unemployment rate", CPIAUCSL: "CPI", GDPC1: "Real GDP",
+                INDPRO: "Industrial production", RSAFS: "Retail sales"};
+const vcolor = (M, v) => `var(--slot${M.variants.indexOf(v) + 1})`;   // colour follows the entity within a module
+
+/* ---------- DOM helpers (untrusted strings always go through text nodes) ---------- */
+function el(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k === "class") e.className = v; else if (k === "style") e.style.cssText = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v);
+  }
+  for (const k of kids.flat()) if (k != null && k !== false) e.append(k instanceof Node ? k : document.createTextNode(String(k)));
+  return e;
+}
+const NS = "http://www.w3.org/2000/svg";
+function s(tag, attrs, ...kids) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs || {})) if (v != null) e.setAttribute(k, v);
+  for (const k of kids.flat()) if (k != null) e.append(k instanceof Node ? k : document.createTextNode(String(k)));
+  return e;
+}
+function icon(path) { const x = s("svg", {viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": 1.8, "stroke-linecap": "round", "stroke-linejoin": "round"});
+  path.split("|").forEach(d => x.append(s("path", {d}))); return x; }
+const ICONS = {
+  clock: "M12 7v5l3 2|M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18", search: "M11 4a7 7 0 1 0 0 14a7 7 0 0 0 0-14|M20 20l-4-4",
+  shield: "M12 3l7 3v6c0 4.5-3 7.5-7 9c-4-1.5-7-4.5-7-9V6z|M9 12l2 2l4-4", book: "M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z|M4 19V5",
+  user: "M12 12a4 4 0 1 0 0-8a4 4 0 0 0 0 8|M4 21a8 8 0 0 1 16 0",
+  cpu: "M7 7h10v10H7z|M9 3v4|M15 3v4|M9 17v4|M15 17v4|M3 9h4|M3 15h4|M17 9h4|M17 15h4", layers: "M12 3l9 5l-9 5l-9-5z|M3 13l9 5l9-5",
+  db: "M12 3c4.4 0 8 1.3 8 3s-3.6 3-8 3s-8-1.3-8-3s3.6-3 8-3|M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6|M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3",
+  check: "M5 12l4 4l10-10", code: "M8 8l-4 4l4 4|M16 8l4 4l-4 4|M14 5l-4 14", trend: "M3 17l6-6l4 4l8-8|M15 7h6v6",
+};
+const pct = (x, d = 1) => x == null ? "–" : (100 * x).toFixed(d).replace(/\.0+$/, "") + "%";
+const fmtInt = x => x == null ? "–" : Math.round(x).toLocaleString("en-US");
+const mmss = t => { t = Math.max(0, Math.round(t)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; };
+const dayFmt = iso => new Date(iso.slice(0, 10) + "T12:00:00Z").toLocaleDateString("en-US", {weekday: "short", month: "short", day: "numeric", timeZone: "UTC"});
+const dateFmt = iso => new Date(iso.slice(0, 10) + "T12:00:00Z").toLocaleDateString("en-US", {month: "short", day: "numeric", year: "numeric", timeZone: "UTC"});
+const monFmt = iso => new Date(iso.slice(0, 10) + "T12:00:00Z").toLocaleDateString("en-US", {month: "long", year: "numeric", timeZone: "UTC"});
+function status(kind, text) {
+  return el("span", {class: `status st-${kind}`}, el("span", {class: "ico", "aria-hidden": "true"}, {good: "✓", critical: "!", serious: "✕", warning: "!"}[kind]), text);
+}
+const badge = (kind, text) => el("span", {class: `badge ${kind}`}, text);
+const sum = xs => xs.reduce((a, c) => a + c, 0);
+const leakyOf = M => M.variants.filter(v => M.gold[v].leak);
+
+/* tooltip: values lead, labels follow */
+const tip = document.getElementById("tip");
+function showTip(evt, rows) {
+  tip.replaceChildren(...rows.map(([v, l]) => el("div", {class: "row"}, el("span", {class: "v"}, v), l ? el("span", {class: "l"}, "  " + l) : null)));
+  tip.style.display = "block";
+  tip.style.left = Math.min(evt.clientX + 16, innerWidth - tip.offsetWidth - 10) + "px";
+  tip.style.top = Math.min(evt.clientY + 16, innerHeight - tip.offsetHeight - 10) + "px";
+}
+const hideTip = () => { tip.style.display = "none"; };
+function hover(node, rows) {
+  node.setAttribute("tabindex", "0");
+  node.addEventListener("pointermove", e => showTip(e, rows)); node.addEventListener("pointerleave", hideTip);
+  node.addEventListener("focus", () => { const r = node.getBoundingClientRect(); showTip({clientX: r.right, clientY: r.top}, rows); });
+  node.addEventListener("blur", hideTip);
+  return node;
+}
+const svgText = (x, y, txt, attrs = {}) => s("text", {x, y, ...attrs}, txt);
+
+/* ================= shared chart pieces ================= */
+
+/* A day-resolution timeline: milestone rows on top (one row each, haloed labels), one row per pipeline variant below.
+   days = ISO dates (columns), ms = [{iso, x?, t, sub, c}], rows = [{v, asof, early, nd, note}] */
+function dayTimeline(M, days, ms, rows, ftIso, aria) {
+  const W = 1100, L = 250, R = 24, laneTop = 16, laneRow = 40, top = laneTop + ms.length * laneRow + 28, rowH = 50;
+  const H = top + rowH * rows.length + 36, cw = (W - L - R) / days.length;
+  const slot = iso => days.indexOf(iso.slice(0, 10));
+  const openX = iso => L + slot(iso) * cw + 6;
+  const svg = s("svg", {viewBox: `0 0 ${W} ${H}`, width: "100%", role: "img", "aria-label": aria});
+  const step = Math.ceil(days.length / 12);
+  days.forEach((d, i) => {
+    const x = L + i * cw;
+    if (i % 2 === 0) svg.append(s("rect", {x, y: top - 18, width: cw, height: H - top - 18, fill: "rgba(148,163,184,0.03)"}));
+    if (i % step === 0) svg.append(svgText(x + cw / 2, H - 10, dayFmt(d), {"text-anchor": "middle", class: "tm"}));
+  });
+  svg.append(s("line", {class: "axis", x1: L, x2: W - R, y1: H - 28, y2: H - 28}));
+  ms.forEach((m, i) => {
+    const x = m.x ?? (L + slot(m.iso) * cw + cw / 2), y = laneTop + i * laneRow + 14, right = x > W - 340;
+    svg.append(s("line", {x1: x, x2: x, y1: y + 6, y2: H - 28, stroke: m.c, "stroke-width": 1, "stroke-opacity": m.strong ? 0.9 : 0.45}));
+    svg.append(s("circle", {cx: x, cy: y + 2, r: 5, fill: m.c, stroke: "var(--card)", "stroke-width": 2}));
+    svg.append(svgText(right ? x - 12 : x + 12, y, m.t, {"text-anchor": right ? "end" : "start", class: "t1 halo", "font-weight": 650, "font-size": 13}));
+    svg.append(svgText(right ? x - 12 : x + 12, y + 15, m.sub, {"text-anchor": right ? "end" : "start", class: "tm halo"}));
+  });
+  const ftX = openX(ftIso);
+  rows.forEach((r, i) => {
+    const y = top + 16 + i * rowH, ax = openX(r.asof);
+    svg.append(s("rect", {x: 16, y: y - 8, width: 4, height: 16, rx: 2, fill: vcolor(M, r.v)}));
+    svg.append(svgText(30, y + 4, M.short[r.v], {class: "t1", "font-size": 13, "font-weight": 600}));
+    svg.append(svgText(30, y + 19, M.gold[r.v].leak ? "planted leak" : "negative control", {class: "tm", "font-size": 11}));
+    if (r.early) {
+      svg.append(s("rect", {x: ax, y: y - 11, width: ftX - ax, height: 22, rx: 6, fill: "var(--critical-wash)", stroke: "rgba(208,59,59,0.45)", "stroke-width": 1}));
+      svg.append(svgText((ax + ftX) / 2, y + 4, `${r.nd} trading day${r.nd > 1 ? "s" : ""} early`,
+        {"text-anchor": "middle", fill: "var(--critical-text)", "font-size": 12, "font-weight": 650, class: "halo", style: "stroke:#361e2d;stroke-width:5px"}));
+    }
+    const g = s("g", {}, s("circle", {cx: ax, cy: y, r: 14, fill: "transparent"}), s("circle", {cx: ax, cy: y, r: 7, fill: vcolor(M, r.v), stroke: "var(--card)", "stroke-width": 2}));
+    hover(g, [[`${dayFmt(r.asof)} · 09:30 open`, M.short[r.v]], [M.gold[r.v].asof_code || "", ""], [r.note, ""]]);
+    svg.append(g);
+    if (!r.early) svg.append(svgText(ax + 16, y + 4, r.okText || "✓ on time", {fill: r.okColor || "var(--good-text)", "font-size": 12, "font-weight": 650}));
+  });
+  return svg;
+}
+function weekdaysBetween(isoA, isoB, padBefore = 1, padAfter = 1) {
+  const out = [], a = new Date(isoA.slice(0, 10) + "T12:00:00Z"), b = new Date(isoB.slice(0, 10) + "T12:00:00Z");
+  a.setUTCDate(a.getUTCDate() - padBefore); b.setUTCDate(b.getUTCDate() + padAfter);
+  for (let d = new Date(a); d <= b; d.setUTCDate(d.getUTCDate() + 1)) if (d.getUTCDay() > 0 && d.getUTCDay() < 6) out.push(d.toISOString().slice(0, 10));
+  return out;
+}
+const tradingGap = (days, a, b) => days.indexOf(b.slice(0, 10)) - days.indexOf(a.slice(0, 10));
+
+/* Share of events using non-public information, per variant (bars carry the variant colour; labels at the tip). */
+function earlyBars(M) {
+  const V = M.variants, W = 1100, L = 250, R = 80, bh = 22, gap = 22, H = V.length * (bh + gap) + 26;
+  const svg = s("svg", {viewBox: `0 0 ${W} ${H}`, width: "100%", role: "img", "aria-label": "Share of events using information that was not yet public, per pipeline"});
+  const xs = f => L + f * (W - L - R);
+  [0, .25, .5, .75, 1].forEach(t => { svg.append(s("line", {class: "grid", x1: xs(t), x2: xs(t), y1: 0, y2: H - 22}));
+                                     svg.append(svgText(xs(t), H - 6, pct(t, 0), {"text-anchor": "middle", class: "tm num"})); });
+  V.forEach((v, i) => {
+    const y = i * (bh + gap) + 6, f = M.gold[v].true_lookahead.share_before_tradable ?? 0, w = Math.max(xs(f) - L, 0), r = Math.min(4, w / 2);
+    svg.append(s("rect", {x: 16, y: y + 3, width: 4, height: 16, rx: 2, fill: vcolor(M, v)}));
+    svg.append(svgText(30, y + bh / 2 + 4, M.short[v], {class: "t1", "font-size": 13, "font-weight": 600}));
+    const path = w > 0 ? `M${L},${y} h${w - r} a${r},${r} 0 0 1 ${r},${r} v${bh - 2 * r} a${r},${r} 0 0 1 ${-r},${r} h${-(w - r)} z` : "";
+    const g = s("g", {}, s("rect", {x: L, y: y - gap / 2 + 2, width: W - L - R, height: bh + gap - 4, fill: "transparent"}), path ? s("path", {d: path, fill: vcolor(M, v)}) : null);
+    hover(g, [[pct(f), M.short[v]], [`of ${fmtInt(M.gold[v].true_lookahead.n_events)} ${M.unit} use information that was not yet public`, ""]]);
+    svg.append(g);
+    svg.append(svgText(L + w + 10, y + bh / 2 + 5, pct(f), {class: "t1", "font-weight": 700, "font-size": 14}));
+  });
+  svg.append(s("line", {class: "axis", x1: L, x2: L, y1: 0, y2: H - 22}));
+  return svg;
+}
+
+/* Horizontal bars with optional whiskers, one row per category (single hue: categories are not identities here). */
+function hbars(rows, {max, fmt, aria, whisk = false, unitLabel = ""}) {
+  const W = 540, L = 150, R = 70, bh = 16, gap = 16, H = rows.length * (bh + gap) + 24;
+  const svg = s("svg", {viewBox: `0 0 ${W} ${H}`, width: "100%", role: "img", "aria-label": aria});
+  const xs = v => L + (v / max) * (W - L - R);
+  [0, max / 2, max].forEach(t => { svg.append(s("line", {class: "grid", x1: xs(t), x2: xs(t), y1: 0, y2: H - 20}));
+                                  svg.append(svgText(xs(t), H - 6, fmt(t), {"text-anchor": "middle", class: "tm num"})); });
+  rows.forEach((r, i) => {
+    const y = i * (bh + gap) + 6, w = Math.max(xs(r.v) - L, 0), rr = Math.min(4, w / 2);
+    svg.append(svgText(L - 10, y + bh / 2 + 4, r.label, {"text-anchor": "end", class: "t1", "font-size": 12}));
+    const path = w > 0 ? `M${L},${y} h${w - rr} a${rr},${rr} 0 0 1 ${rr},${rr} v${bh - 2 * rr} a${rr},${rr} 0 0 1 ${-rr},${rr} h${-(w - rr)} z` : "";
+    const g = s("g", {}, s("rect", {x: L, y: y - gap / 2 + 2, width: W - L - R, height: bh + gap - 4, fill: "transparent"}), path ? s("path", {d: path, fill: "var(--seq)"}) : null);
+    if (whisk && r.lo != null) {
+      const yy = y + bh / 2;
+      g.append(s("line", {x1: xs(r.lo), x2: xs(r.hi), y1: yy, y2: yy, stroke: "var(--text)", "stroke-width": 1.5}));
+      [r.lo, r.hi].forEach(v => g.append(s("line", {x1: xs(v), x2: xs(v), y1: yy - 5, y2: yy + 5, stroke: "var(--text)", "stroke-width": 1.5})));
+    }
+    hover(g, [[fmt(r.v), r.label], ...(r.extra ? [[r.extra, ""]] : [])]);
+    svg.append(g);
+    svg.append(svgText(Math.max(xs(r.hi ?? r.v), L + w) + 8, y + bh / 2 + 4, fmt(r.v) + unitLabel, {class: "t1", "font-weight": 650}));
+  });
+  return svg;
+}
+
+/* ================= module-specific story and evidence ================= */
+function storyForm4(M) {
+  const st = M.story, days = weekdaysBetween(st.trans_date, st.first_tradable);
+  const L = 250, cw = (1100 - L - 24) / days.length, slot = iso => days.indexOf(iso.slice(0, 10));
+  const timeX = iso => { const h = +iso.slice(11, 13) + (+iso.slice(14, 16)) / 60;
+                         return L + slot(iso) * cw + 6 + (cw - 12) * Math.min(Math.max((h - 9.5) / 6.5, 0), 1); };
+  const ms = [{iso: st.trans_date, t: "Insider buys the stock", sub: dayFmt(st.trans_date), c: "var(--text-2)"},
+              {iso: st.acceptance_et, x: timeX(st.acceptance_et), t: "SEC accepts the Form 4 — the news is public", sub: `${dayFmt(st.acceptance_et)} · ${st.acceptance_et.slice(11, 16)} ET`, c: "var(--text)"},
+              {iso: st.first_tradable, x: L + slot(st.first_tradable) * cw + 6, t: "First moment anyone can trade on it", sub: `${dayFmt(st.first_tradable)} · 09:30 open`, c: "var(--brand-b)", strong: true}];
+  const rows = M.variants.map(v => { const early = st.asof[v].slice(0, 10) < st.first_tradable.slice(0, 10);
+    return {v, asof: st.asof[v], early, nd: tradingGap(days, st.asof[v], st.first_tradable), note: early ? "trades before the news was public" : "first moment it was tradable", okText: "✓ correct"}; });
+  return {
+    lede: `A real filing: an insider of ${st.ticker} bought $${(st.value_usd / 1e6).toFixed(0)}M of stock on ${dayFmt(st.trans_date)}. The SEC made it public on ${dayFmt(st.acceptance_et)} at ${st.acceptance_et.slice(11, 16)} ET. Three plausible ways to code the event date all trade on it before anyone could have known.`,
+    head: "A backtest that trades on news before it was news",
+    card: el("div", {class: "card"}, el("h4", {}, `One filing, four pipelines · ${st.ticker} · accession ${st.accession}`),
+      dayTimeline(M, days, ms, rows, st.first_tradable, `Timeline of ${st.ticker} filing ${st.accession}`),
+      el("details", {class: "data"}, el("summary", {}, "Show as a table"), el("table", {},
+        el("tr", {}, el("th", {}, "Pipeline"), el("th", {}, "Trades the event at"), el("th", {}, "First tradable")),
+        ...M.variants.map(v => el("tr", {}, el("td", {}, M.short[v]), el("td", {}, `${dayFmt(st.asof[v])} 09:30`), el("td", {}, `${dayFmt(st.first_tradable)} 09:30`)))))),
+    task: "A researcher built an insider-buying event table: open-market purchases (code P) by officers and directors, one row per Form 4, keyed by the date the event can first be traded. Four versions of that script are audited; they differ in one line.",
+  };
+}
+
+/* Step chart of one observation's published value over real time; marks which value each pipeline used when. */
+function vintageChart(M, st) {
+  const W = 1100, L = 250, R = 110, T = 20, B = 40, H = 250;
+  const t0 = Date.parse(st.date), vs = st.vintages, tEnd = Date.parse(vs[vs.length - 1].from) + 60 * 864e5;
+  const vals = vs.map(v => v.value), lo = Math.min(...vals), hi = Math.max(...vals), pad = (hi - lo) * 0.25 || 1;
+  const xs = t => L + (t - t0) / (tEnd - t0) * (W - L - R), ys = v => T + (1 - (v - (lo - pad)) / (hi - lo + 2 * pad)) * (H - T - B);
+  const svg = s("svg", {viewBox: `0 0 ${W} ${H}`, width: "100%", role: "img", "aria-label": `Published value of ${st.series_id} for ${monFmt(st.date)} over time`});
+  [lo, (lo + hi) / 2, hi].forEach(v => { svg.append(s("line", {class: "grid", x1: L, x2: W - R, y1: ys(v), y2: ys(v)}));
+                                        svg.append(svgText(L - 10, ys(v) + 4, fmtInt(v), {"text-anchor": "end", class: "tm num"})); });
+  const months = []; for (let d = new Date(t0); d.getTime() <= tEnd; d.setUTCMonth(d.getUTCMonth() + 1)) months.push(new Date(d));
+  months.forEach((d, i) => { if (i % 2 === 0) svg.append(svgText(xs(d.getTime()), H - 14, d.toLocaleDateString("en-US", {month: "short", year: "2-digit", timeZone: "UTC"}), {"text-anchor": "middle", class: "tm"})); });
+  svg.append(s("line", {class: "axis", x1: L, x2: W - R, y1: H - B + 6, y2: H - B + 6}));
+  svg.append(svgText(16, T + 12, "Published value", {class: "t1", "font-weight": 600, "font-size": 13}));
+  svg.append(svgText(16, T + 28, st.units, {class: "tm", "font-size": 11}));
+  // not yet published: from the period start to the first release
+  svg.append(s("rect", {x: xs(t0), y: T, width: xs(Date.parse(vs[0].from)) - xs(t0), height: H - T - B, fill: "var(--neutral-wash)"}));
+  svg.append(svgText((xs(t0) + xs(Date.parse(vs[0].from))) / 2, T + 16, "not yet published", {"text-anchor": "middle", class: "tm", "font-size": 11}));
+  let d = "";
+  vs.forEach((v, i) => { const x0 = xs(Date.parse(v.from)), x1 = i + 1 < vs.length ? xs(Date.parse(vs[i + 1].from)) : W - R, y = ys(v.value);
+    d += (i ? `V${y}` : `M${x0},${y}`) + `H${x1}`; });
+  svg.append(s("path", {d, fill: "none", stroke: "var(--text-2)", "stroke-width": 2, "stroke-linejoin": "round"}));
+  vs.forEach((v, i) => {
+    const g = s("g", {}, s("circle", {cx: xs(Date.parse(v.from)), cy: ys(v.value), r: 12, fill: "transparent"}),
+                s("circle", {cx: xs(Date.parse(v.from)), cy: ys(v.value), r: 5, fill: "var(--text)", stroke: "var(--card)", "stroke-width": 2}));
+    hover(g, [[fmtInt(v.value), `published ${dateFmt(v.from)}`], [i === 0 ? "first release" : i === vs.length - 1 ? "current value" : `revision ${i}`, ""]]);
+    svg.append(g);
+  });
+  const last = vs[vs.length - 1], first = vs[0];
+  svg.append(svgText(W - R + 8, ys(last.value) + 4, `${fmtInt(last.value)} today`, {class: "t1", "font-weight": 650}));
+  svg.append(svgText(xs(Date.parse(first.from)) + 10, ys(first.value) - 10, `${fmtInt(first.value)} first published ${dateFmt(first.from)}`, {class: "t1 halo", "font-weight": 650}));
+  // what the latest-vintage pipeline uses at the first release date
+  const x = xs(Date.parse(st.asof.leak_latest)), yUsed = ys(st.value_used.leak_latest);
+  svg.append(s("line", {x1: x, x2: x, y1: ys(first.value), y2: yUsed, stroke: vcolor(M, "leak_latest"), "stroke-width": 2, "stroke-dasharray": "3 3"}));
+  const g = s("g", {}, s("circle", {cx: x, cy: yUsed, r: 14, fill: "transparent"}), s("circle", {cx: x, cy: yUsed, r: 7, fill: vcolor(M, "leak_latest"), stroke: "var(--card)", "stroke-width": 2}));
+  hover(g, [[fmtInt(st.value_used.leak_latest), M.short.leak_latest], [`used on ${dateFmt(st.asof.leak_latest)}; not published until ${dateFmt(last.from)}`, ""]]);
+  svg.append(g);
+  svg.append(svgText(x + 14, yUsed + 4, `“${M.short.leak_latest}” pipeline trades on this on ${dayFmt(st.asof.leak_latest)}`, {class: "t1 halo", "font-size": 12, fill: "var(--text)"}));
+  return svg;
+}
+
+function storyAlfred(M) {
+  const st = M.story, days = weekdaysBetween(st.date, st.first_tradable, 1, 2);
+  const ms = [{iso: st.date, t: `The month it describes begins`, sub: `${monFmt(st.date)} payrolls · observation date ${dayFmt(st.date)}`, c: "var(--text-2)"},
+              {iso: st.period_end, t: "The month ends", sub: dayFmt(st.period_end), c: "var(--text-2)"},
+              {iso: st.first_tradable, x: 250 + days.indexOf(st.first_tradable.slice(0, 10)) * ((1100 - 274) / days.length) + 6,
+               t: "BLS publishes it at 08:30 ET — first tradable at the 09:30 open", sub: dayFmt(st.release_date), c: "var(--brand-b)", strong: true}];
+  const rows = M.variants.map(v => { const early = st.asof[v].slice(0, 10) < st.first_tradable.slice(0, 10), revised = Math.abs(st.value_used[v] - st.vintages[0].value) > 1e-9;
+    return {v, asof: st.asof[v] < days[0] ? days[0] : st.asof[v], early, nd: tradingGap(days, st.asof[v], st.first_tradable),
+            note: early ? "trades before the number was published" : revised ? `on time, but with the revised value ${fmtInt(st.value_used[v])}` : "first moment it was tradable",
+            okText: revised ? `on time, but uses ${fmtInt(st.value_used[v])} — a later revision` : "✓ correct", okColor: revised ? "var(--critical-text)" : null}; });
+  const first = st.vintages[0], last = st.vintages[st.vintages.length - 1];
+  return {
+    lede: `A real number: ${monFmt(st.date)} US payrolls. BLS first published ${fmtInt(first.value)}k on ${dateFmt(first.from)}; revisions have since cut it to ${fmtInt(last.value)}k, ${fmtInt(Math.abs(last.value - first.value))}k lower. A backtest can leak by using it too early, or by using a value that did not exist yet.`,
+    head: "Macro data leaks twice: through release lags and through revisions",
+    card: el("div", {class: "stack"},
+      el("div", {class: "card"}, el("h4", {}, `When the number could be used · ${st.series_id} for ${monFmt(st.date)}`),
+        dayTimeline(M, days, ms, rows, st.first_tradable, `When each pipeline uses ${st.series_id} for ${monFmt(st.date)}`)),
+      el("div", {class: "card"}, el("h4", {}, "Which number the backtest saw"), vintageChart(M, st),
+        el("details", {class: "data"}, el("summary", {}, "Show vintages as a table"), el("table", {},
+          el("tr", {}, el("th", {}, "Published"), el("th", {}, "Current until"), el("th", {class: "r"}, "Value")),
+          ...st.vintages.map(v => el("tr", {}, el("td", {}, dateFmt(v.from)), el("td", {}, v.to ? dateFmt(v.to) : "still current"), el("td", {class: "r"}, fmtInt(v.value)))))))),
+    task: "A researcher built a macro-regime feature table: six US macro series since 2019, one row per series and month or quarter, keyed by the date the value can first be traded. Four versions of that script are audited; they differ in one line.",
+  };
+}
+
+function evidenceForm4(M) {
+  const E = M.evidence, names = Object.keys(E.hist), max = Math.max(...names.flatMap(n => Object.values(E.hist[n])));
+  const charts = el("div", {class: "grid g2"}, ...names.map(n => {
+    const h = E.hist[n], W = 560, H = 270, l = 52, r = 12, t = 20, b = 36, cw = (W - l - r) / 24, ys = v => t + (H - t - b) * (1 - v / max);
+    const svg = s("svg", {viewBox: `0 0 ${W} ${H}`, width: "100%", role: "img", "aria-label": `Form 3/4/5 acceptances by hour (ET), reading ${n}`});
+    [[0, 6], [22, 24]].forEach(([a, z]) => svg.append(s("rect", {x: l + a * cw, y: t, width: (z - a) * cw, height: H - t - b, fill: "var(--neutral-wash)"})));
+    svg.append(svgText(l + 3 * cw, t + 16, "EDGAR closed", {"text-anchor": "middle", class: "tm", "font-size": 11}));
+    [0, max / 2, max].map(v => Math.round(v / 1000) * 1000).forEach(v => {
+      svg.append(s("line", {class: "grid", x1: l, x2: W - r, y1: ys(v), y2: ys(v)}));
+      svg.append(svgText(l - 8, ys(v) + 4, fmtInt(v), {"text-anchor": "end", class: "tm num"})); });
+    for (let hr = 0; hr < 24; hr++) {
+      const v = h[String(hr)] || 0, x0 = l + hr * cw + 1, w = cw - 2, hh = H - b - ys(v), rr = Math.min(3, w / 2, hh / 2);
+      const path = hh > 0 ? `M${x0},${H - b} v${-(hh - rr)} a${rr},${rr} 0 0 1 ${rr},${-rr} h${w - 2 * rr} a${rr},${rr} 0 0 1 ${rr},${rr} v${hh - rr} z` : "";
+      const g = s("g", {}, s("rect", {x: l + hr * cw, y: t, width: cw, height: H - t - b, fill: "transparent"}), path ? s("path", {d: path, fill: "var(--seq)"}) : null);
+      hover(g, [[fmtInt(v), `filings accepted ${String(hr).padStart(2, "0")}:00–${String(hr).padStart(2, "0")}:59 ET`]]);
+      svg.append(g);
+      if (hr % 3 === 0) svg.append(svgText(l + hr * cw + cw / 2, H - b + 18, `${String(hr).padStart(2, "0")}h`, {"text-anchor": "middle", class: "tm num"}));
+    }
+    svg.append(s("line", {x1: l + 16 * cw, x2: l + 16 * cw, y1: t, y2: H - b, stroke: "var(--text-2)", "stroke-width": 1}));
+    svg.append(svgText(l + 16 * cw + 6, t + 34, "16:00 close", {class: "t1", "font-size": 11}));
+    svg.append(s("line", {class: "axis", x1: l, x2: W - r, y1: H - b, y2: H - b}));
+    const sm = E.summary, best = sm.more_consistent_reading === n;
+    return el("div", {class: "card" + (best ? " hi" : "")},
+      el("div", {style: "display:flex;justify-content:space-between;gap:12px;align-items:flex-start"},
+        el("div", {}, el("h3", {}, n.startsWith("A") ? "If the timestamps are true UTC" : "If they are really Eastern time"),
+          el("p", {style: "font-size:13px;margin:0"}, `${pct(sm.form345_consistency_by_reading[n])} consistent with EDGAR's filing-date rule · ${fmtInt(sm.impossible_under_reading[n])} filings dated before they were accepted`)),
+        best ? badge("built", "Chosen") : badge("planned", "Rejected")),
+      el("div", {style: "margin-top:14px"}, svg),
+      el("div", {style: "margin-top:8px"}, best ? status("good", "Filings cluster right after the close, and none arrive while EDGAR is closed")
+                                              : status("serious", "Thousands of filings would arrive at night, when EDGAR is closed")));
+  }));
+  return {head: "The timestamps say “UTC”. The agent checks whether that is true.",
+          lede: `EDGAR labels acceptance times as UTC, but that claim could be wrong. Getting it wrong shifts every event by 4–5 hours, across the market close. The PIT agent tests both readings on ${fmtInt(E.n_filings)} filings against how EDGAR assigns filing dates.`,
+          body: charts};
+}
+
+function evidenceAlfred(M) {
+  const E = M.evidence, ids = Object.keys(E.lag).sort((a, b) => E.lag[a].median - E.lag[b].median);
+  const lagRows = ids.map(k => ({label: SERIES[k] || k, v: E.lag[k].median, lo: E.lag[k].p10, hi: E.lag[k].p90,
+                                 extra: `${E.frequency[k]} · 10–90% range ${E.lag[k].p10.toFixed(0)}–${E.lag[k].p90.toFixed(0)} days`}));
+  const revIds = Object.keys(E.revisions).sort((a, b) => E.revisions[b].share - E.revisions[a].share);
+  const revRows = revIds.map(k => ({label: SERIES[k] || k, v: E.revisions[k].share, extra: `median revision ${E.revisions[k].median_pct.toFixed(2)}% of the first value`}));
+  return {head: "The agent measures when each number was really known — and whether it stayed the same",
+          lede: "Two facts decide point-in-time correctness for macro data: how long after its period a number is published, and how often it is revised afterwards. The PIT agent measures both from the vintage history and checks the agencies' published release times.",
+          body: el("div", {class: "grid g2"},
+            el("div", {class: "card hi"}, el("h3", {}, "Days from the period's start to first publication"),
+              el("p", {style: "font-size:13px"}, "Median, with the 10–90% range. FRED dates a value at the start of the period it describes."),
+              hbars(lagRows, {max: Math.ceil(Math.max(...lagRows.map(r => r.hi)) / 20) * 20, fmt: v => v.toFixed(0), whisk: true, unitLabel: " d", aria: "Release lag per series"}),
+              el("div", {style: "margin-top:8px"}, status("good", "Rule: usable from the open on the first publication date (all released 08:30–09:15 ET)"))),
+            el("div", {class: "card hi"}, el("h3", {}, "Share of values revised after first publication"),
+              el("p", {style: "font-size:13px"}, "Observations since 2019 whose current value differs from the first published one."),
+              hbars(revRows, {max: 1, fmt: v => pct(v, 0), aria: "Share of values revised per series"}),
+              el("div", {style: "margin-top:8px"}, status("good", "Rule: use the value as published on each date, never today's revised value")))),
+  };
+}
+const STORY = {form4: storyForm4, alfred: storyAlfred};
+const EVIDENCE = {form4: evidenceForm4, alfred: evidenceAlfred};
+const REPLAY_VARIANT = {form4: "leak_filingdate", alfred: "leak_latest"};
+
+/* ================= replay of a recorded run ================= */
+const GATE_WAIT = {g1: "waiting for the PIT contract", g2: "waiting for the ideas", g3: "waiting for the candidate set"};
+function Replay(run, order = ["profiler", "pit_agent", "g1", "auditor"]) {
+  const evs = run.events, root = el("div", {class: "replay"});
+  const nodes = {}, ctr = {};
+  const chain = el("div", {class: "chain"});
+  order.forEach((a, i) => {
+    if (i) chain.append(el("div", {class: "link", "aria-hidden": "true"}));
+    ctr[a] = el("div", {class: "ctr"}, GATE_WAIT[a] || "idle");
+    nodes[a] = el("div", {class: "node"}, el("div", {class: "nm"}, el("span", {class: "av"}, AGENTS[a][0]), AGENTS[a][1], el("span", {class: "pill"}, "idle")),
+                  el("div", {class: "desc"}, AGENTS[a][2]), ctr[a]);
+    chain.append(nodes[a]);
+  });
+  const feed = el("div", {class: "feed", "aria-live": "polite"});
+  const clock = el("span", {class: "clock"});
+  const scrub = el("input", {type: "range", min: 0, max: evs.length, value: 0, "aria-label": "Replay position"});
+  const playBtn = el("button", {class: "btn small primary"}, "▶ Play");
+  const speed = el("select", {"aria-label": "Replay speed"}, ...[["story", "Story pace"], ["20", "20× real time"], ["100", "100× real time"]].map(([v, l]) => el("option", {value: v}, l)));
+  root.append(chain, el("div", {}, el("div", {class: "controls"}, playBtn,
+    el("button", {class: "btn small", onclick: () => stepTo(idx + 1)}, "Step"), el("button", {class: "btn small", onclick: () => stepTo(evs.length)}, "Skip to end"),
+    el("button", {class: "btn small", onclick: () => { pause(); stepTo(0); }}, "Reset"), speed, scrub, clock), feed));
+  let idx = 0, timer = null;
+  function render(upto) {
+    feed.replaceChildren();
+    const c = {}, stt = {}, gate = {...GATE_WAIT};
+    order.forEach(a => { c[a] = [0, 0]; stt[a] = "idle"; });
+    for (let i = 0; i < upto; i++) {
+      const e = evs[i];
+      if (e.agent && c[e.agent]) { if (e.type === "llm") c[e.agent][0]++; if (e.type === "tool") c[e.agent][1]++; }
+      if (e.type === "agent_start") stt[e.agent] = "active";
+      if (e.type === "agent_end") stt[e.agent] = e.ok ? "done" : "fail";
+      if (e.type === "gate") { stt.g1 = "done"; gate.g1 = e.approved ? "approved the rule" : "corrected the rule"; }
+      if (e.type === "gate_ideas") { stt.g2 = "done"; gate.g2 = e.approved ? `approved ${e.approved_ideas?.length ?? ""} ideas` : "rejected the ideas"; }
+      if (e.type === "gate_freeze") { stt.g3 = "done"; gate.g3 = e.approved ? `froze ${e.approved_features?.length ?? ""} features` : "rejected the set"; }
+      const card = eventCard(e);
+      if (card) { if (i === upto - 1) card.classList.add("new"); feed.append(card); }
+    }
+    for (const a of Object.keys(nodes)) {
+      nodes[a].className = "node " + (stt[a] === "idle" ? "" : stt[a]);
+      nodes[a].querySelector(".pill").textContent = {idle: "idle", active: "working", done: "done", fail: "failed"}[stt[a]];
+      ctr[a].textContent = a in GATE_WAIT ? gate[a] : (stt[a] === "idle" ? "idle" : `${c[a][0]} reasoning steps · ${c[a][1]} tool calls`);
+    }
+    clock.textContent = `real run time ${mmss(upto ? evs[upto - 1].t : 0)} / ${mmss(evs[evs.length - 1].t)}`;
+    scrub.value = upto; feed.scrollTop = feed.scrollHeight;
+  }
+  function stepTo(i) { idx = Math.max(0, Math.min(evs.length, i)); render(idx); if (idx >= evs.length) pause(); }
+  function delay() {
+    if (idx >= evs.length) return 0;
+    const gap = idx ? evs[idx].t - evs[idx - 1].t : 0;
+    if (speed.value === "story") return ["llm", "tool", "nudge"].includes(evs[idx].type) ? 420 : 1500;
+    return Math.min(Math.max(gap / +speed.value * 1000, 120), 4000);
+  }
+  function tick() { stepTo(idx + 1); if (idx < evs.length) timer = setTimeout(tick, delay()); }
+  function play() { if (idx >= evs.length) stepTo(0); playBtn.textContent = "❚❚ Pause"; timer = setTimeout(tick, 200); }
+  function pause() { clearTimeout(timer); timer = null; playBtn.textContent = "▶ Play"; }
+  playBtn.onclick = () => timer ? pause() : play();
+  scrub.oninput = () => { pause(); stepTo(+scrub.value); };
+  render(0);
+  return {el: root, pause};
+}
+
+function eventCard(e) {
+  const who = e.agent ? AGENTS[e.agent][1].split(" ").slice(-1)[0] : "";
+  const head = (cls, h, body, extra) => el("div", {class: `ev ${cls}`}, el("div", {class: "h"}, el("span", {class: "who"}, who), h, el("span", {class: "t"}, mmss(e.t))),
+                                            body ? el("div", {class: "body"}, body) : null, extra || null);
+  switch (e.type) {
+    case "run_start": return el("div", {class: "ev big"}, el("div", {class: "h"}, el("strong", {}, e.pipeline ? "Audit started" : "Run started"), el("span", {class: "t"}, "0:00")),
+                               el("div", {class: "body"}, e.pipeline ? `Pipeline under audit: ${e.pipeline} · model: ${e.model}` : `Dataset: ${e.dataset} · mode: ${e.mode} · model: ${e.model}`));
+    case "agent_start": return head("big", el("strong", {}, `${AGENTS[e.agent][1]} takes over`), AGENTS[e.agent][2],
+                                    e.task ? el("details", {}, el("summary", {}, "Task given to the agent"), el("pre", {}, e.task)) : null);
+    case "llm": return head("", el("span", {class: "t2"}, "Reasoning step", el("span", {class: "muted"}, ` · ${fmtInt(e.tokens_in)} tokens in, ${fmtInt(e.tokens_out)} out · ${e.latency_s ?? "–"} s`)),
+                            e.text ? e.text.slice(0, 280) : null,
+                            e.calls.length ? el("div", {class: "chips"}, ...e.calls.map(c => el("span", {class: "chip"}, c.name === "submit" ? "submit answer" : c.name))) : null);
+    case "tool": return head("tool", el("span", {}, el("strong", {}, e.name), e.run_id ? el("span", {class: "muted"}, `  ${e.run_id}`) : null),
+                             e.summary, el("details", {}, el("summary", {}, "Arguments and result"), el("pre", {}, `args: ${e.args}\n\nresult: ${e.result}`)));
+    case "nudge": return head("", el("span", {class: "muted"}, "Loop feedback"), e.text.slice(0, 220));
+    case "submit": return e.accepted ? head("ok", status("good", "Answer accepted: schema and data checks pass"), null)
+                                     : head("", status("serious", "Answer rejected by a deterministic check; the agent must fix it"), e.error.slice(0, 380));
+    case "agent_end": return null;
+    case "gate": return el("div", {class: "ev ok"}, el("div", {class: "h"}, el("span", {class: "who"}, "G1"),
+        e.approved ? status("good", "Human gate: availability rule approved") : status("warning", "Human gate: availability rule corrected"), el("span", {class: "t"}, mmss(e.t))),
+        el("div", {class: "body"}, e.explanation), el("div", {class: "body muted"}, `${e.decided_by}: ${e.note}`));
+    case "finding": return el("div", {class: "ev alert"}, el("div", {class: "h"}, el("span", {class: "who"}, "Auditor"),
+        status("critical", `Look-ahead leak found at line ${e.line}`), el("span", {class: "t"}, mmss(e.t))),
+        el("div", {class: "body"}, e.description),
+        el("div", {class: "body", style: "margin-top:6px"}, `${pct(e.impact_before)} of rows use non-public information → after the patch `, el("strong", {}, pct(e.verified_share ?? e.impact_after)), "  ",
+           e.verified_by_run ? status("good", `verified by re-run ${e.verified_by_run}`) : status("warning", "patch not verified")));
+    case "finding_none": return el("div", {class: "ev ok"}, el("div", {class: "h"}, el("span", {class: "who"}, "Auditor"), status("good", "No look-ahead found"),
+        el("span", {class: "t"}, mmss(e.t))), el("div", {class: "body"}, e.summary));
+    case "ideas": return el("div", {class: "ev big"}, el("div", {class: "h"}, el("span", {class: "who"}, "Ideas"), el("strong", {}, `${e.ideas.length} feature ideas proposed`), el("span", {class: "t"}, mmss(e.t))),
+        el("div", {class: "body"}, ...e.ideas.map(i => el("div", {}, el("strong", {}, i.name), el("span", {class: "muted"}, ` (${i.source}) `), i.idea))));
+    case "gate_ideas": return el("div", {class: "ev ok"}, el("div", {class: "h"}, el("span", {class: "who"}, "G2"),
+        e.approved ? status("good", "Human gate: feature ideas approved") : status("warning", "Human gate: ideas rejected"), el("span", {class: "t"}, mmss(e.t))),
+        el("div", {class: "body"}, (e.approved_ideas || []).join(" · ")), el("div", {class: "body muted"}, `${e.decided_by}: ${e.note || ""}`));
+    case "gate_freeze": return el("div", {class: "ev ok"}, el("div", {class: "h"}, el("span", {class: "who"}, "G3"),
+        e.approved ? status("good", "Human gate: candidate feature set frozen") : status("warning", "Human gate: set rejected"), el("span", {class: "t"}, mmss(e.t))),
+        el("div", {class: "body"}, (e.approved_features || []).join(" · ")), el("div", {class: "body muted"}, `${e.decided_by}: ${e.note || ""}${e.set_hash ? " · set hash " + e.set_hash : ""}`));
+    case "brief": return el("div", {class: "ev ok"}, el("div", {class: "h"}, el("span", {class: "who"}, "Research"), status("good", "Data Brief assembled"), el("span", {class: "t"}, mmss(e.t))),
+        el("div", {class: "body"}, `${e.observations} recorded observations · ${e.cleaning} cleaning steps proposed for gate G0`));
+    case "run_end": return el("div", {class: "ev big"}, el("div", {class: "h"}, el("strong", {}, `Run finished · ${e.status}`), el("span", {class: "t"}, mmss(e.t))));
+  }
+  return null;
+}
+
+function codeView(M, run, ctx) {
+  const lines = run.source.split("\n"), gl = M.gold[run.variant].line, line = gl || lines.findIndex(l => l.includes("asof_date\"] =")) + 1;
+  const f = run.state.audit_report?.findings?.[0];
+  const box = el("div", {class: "code", role: "region", "aria-label": "Pipeline source around the leak"});
+  for (let i = Math.max(1, line - ctx); i <= Math.min(lines.length, line + ctx); i++) {
+    const hl = i === gl;
+    box.append(el("div", {class: "ln" + (hl ? " hl" : "")}, el("span", {class: "no"}, i), lines[i - 1], hl ? el("span", {class: "tag", style: "color:var(--critical-text)"}, "LEAK") : null));
+    if (hl && f) f.proposed_patch.filter(p => p.line === i).forEach(p => box.append(el("div", {class: "ln add"}, el("span", {class: "no"}, "+"), p.new_code.trim(),
+                                                                          el("span", {class: "tag", style: "color:var(--good-text)"}, "AGENT FIX"))));
+  }
+  return box;
+}
+
+/* ================= scores ================= */
+function scores(M) {
+  const b = M.batches[M.batches.length - 1].scores, prev = M.batches.length > 1 ? M.batches[0] : null, leaky = leakyOf(M);
+  const avg = (sc, f) => { const xs = Object.values(sc).map(f).filter(x => x != null); return xs.length ? sum(xs) / xs.length : null; };
+  const errs = leaky.map(v => b[v]?.leak?.impact_abs_error).filter(x => x != null);
+  return {
+    caught: leaky.filter(v => b[v]?.leak?.detected && b[v]?.leak?.line_correct).length, nLeaky: leaky.length,
+    verified: leaky.filter(v => b[v]?.leak?.patch_verified).length, fp: b.clean ? (b.clean.leak.n_findings || 0) : null,
+    exact: errs.length && errs.every(x => x === 0), meanErr: errs.length ? sum(errs) / errs.length : null,
+    sem: avg(b, r => r.semantic_accuracy), rule: avg(b, r => r.rule_correctness?.overall),
+    semPrev: prev && avg(prev.scores, r => r.semantic_accuracy), rulePrev: prev && avg(prev.scores, r => r.rule_correctness?.overall),
+    mins: (m => m == null ? null : m / 60)(avg(b, r => sum(Object.values(r.cost || {}).map(c => c.wall_s || 0)))),
+    calls: avg(b, r => sum(Object.values(r.cost || {}).map(c => c.llm_calls || 0))),
+    runsOk: Object.values(b).filter(r => r.status === "ok").length, n: Object.keys(b).length,
+  };
+}
+const ALL = MODS.map(scores);
+const TOT = {caught: sum(ALL.map(x => x.caught)), nLeaky: sum(ALL.map(x => x.nLeaky)), verified: sum(ALL.map(x => x.verified)),
+             fp: sum(ALL.map(x => x.fp || 0)), rule: sum(ALL.map(x => x.rule || 0)) / ALL.length, sem: sum(ALL.map(x => x.sem || 0)) / ALL.length};
+const tile = (label, value, delta, up) => el("div", {class: "tile"}, el("div", {class: "label"}, label), el("div", {class: "value"}, value),
+                                            delta ? el("div", {class: "delta" + (up ? " up" : "")}, delta) : null);
+
+/* ================= pages ================= */
+function pageMission() {
+  const bench = D.research && D.research.benchmarks.find(b => b.profile === "finra_defects");
+  const eb = D.eda ? D.eda.benchmarks : [];
+  const ideaChecks = eb.flatMap(b => Object.entries(b.passed).filter(([k]) => k !== "own_ideas_explored").map(([, v]) => v));
+  const kpis = [[`${TOT.caught}/${TOT.nLeaky}`, "planted look-ahead leaks found at the exact line, fixes verified"],
+                ...(bench ? [[`${bench.benchmark.n_detected}/5`, `planted data defects found; ${fmtInt(bench.benchmark.rows_dropped_beyond_defects)} clean rows dropped`]] : []),
+                ...(eb.length ? [[`${ideaChecks.filter(Boolean).length}/${ideaChecks.length}`, `researcher-idea checks passed: built as meant, free of planted bias (${eb.length} repeats)`]] : []),
+                ...(D.predict && D.predict.benchmarks.length ? (() => { const v = D.predict.benchmarks.flatMap(b => Object.values(b.passed));
+                  return [[`${v.filter(Boolean).length}/${v.length}`, `planted-return checks passed: real signals kept, spurious ones validated away or refuted (${D.predict.benchmarks.length} repeats)`]]; })() : []),
+                [fmtInt(TOT.fp), "false alarms on clean pipelines"]];
+  return el("div", {},
+    el("section", {class: "hero"}, el("div", {class: "hero-grid"},
+      el("div", {},
+        el("div", {class: "eyebrow"}, el("span", {class: "dot"}), "A multi-agent helper for quant research"),
+        el("h1", {}, "Accelerate quant research. ", el("span", {class: "grad"}, "Keep every decision accountable.")),
+        el("p", {class: "lede"}, `${PRODUCT} is a team of AI agents that takes on the heavy, data-intensive work of quantitative research: understanding unfamiliar datasets, establishing when each record was really knowable, auditing research code, and building the first features and signals. Every judgment is backed by a logged computation and the documents it cites, every decision that carries risk is signed off by the researcher, and the whole trail can be checked afterwards.`),
+        el("div", {class: "cta"}, el("button", {class: "btn primary", onclick: () => go("framework")}, "Explore the framework →"))),
+      el("div", {class: "card hi"},
+        el("h4", {}, "Measured, not demoed"),
+        el("div", {class: "grid g2", style: "gap:22px"},
+          ...kpis.map(([v, l]) => el("div", {}, el("div", {class: "kpi"}, v), el("div", {class: "t2", style: "font-size:13px"}, l)))),
+        el("div", {class: "divider", style: "margin:20px 0 14px"}),
+        el("div", {class: "muted", style: "font-size:12px"}, "SEC Form 4 · ALFRED macro vintages · FINRA short volume · each scored against exact ground truth the agents never see")))),
+    el("section", {class: "section"},
+      el("div", {class: "eyebrow"}, "Why now"),
+      el("h2", {}, "AI is making quant research faster. Speed is only an edge if the work can be checked."),
+      el("p", {class: "lede wide"}, "AI already reads data, writes research code and tests ideas in hours instead of weeks, and every team that adopts it raises the pace for everyone else. Faster research also means more ways to be silently wrong: a misread field, a record used before it was public, a feature tuned to the backtest. The teams that win are the ones whose speed comes with evidence.")),
+    el("section", {class: "section"},
+      el("div", {class: "eyebrow"}, "The problem"),
+      el("h2", {}, "Most of a quant researcher's time goes into the work around the idea."),
+      el("p", {class: "lede wide"}, "Before any signal is tested, the data has to be understood, cleaned, time-stamped and turned into features. That work is slow, and its mistakes are silent: they make results look better, not broken."),
+      el("div", {class: "grid g3"},
+        ...[["db", "Every new dataset is weeks of detective work", "Ambiguous fields, thin documentation, coverage holes, unit changes, revisions. Each vendor dataset has to be understood before it can be trusted."],
+            ["clock", "Point-in-time errors are silent", "Using data before it was public, or after it was revised, inflates a backtest. Nothing errors; the result simply looks too good."],
+            ["trend", "Features drift toward the backtest", "A representation chosen after looking at returns is hidden overfitting. Normalizations picked by Sharpe ratio rarely survive out of sample."]]
+          .map(([ic, t, d]) => el("div", {class: "card"}, el("div", {class: "icon"}, icon(ICONS[ic])), el("h3", {}, t), el("p", {style: "margin:0"}, d))))),
+    el("section", {class: "section"},
+      el("div", {class: "eyebrow"}, `What ${PRODUCT} does`),
+      el("h2", {}, "Understand the data. Trust its timing. Audit the code. Build the features."),
+      el("div", {class: "grid g4", style: "margin-top:24px"},
+        ...[["book", "Understand", "Grounds every field in the vendor's documentation, profiles coverage, missing data and breaks, judges what the data can support, and proposes cleaning.", "DatasetCard"],
+            ["clock", "Trust", "Infers when each record became public and first tradable, and which version of a revised value was known, with evidence.", "PITContract"],
+            ["shield", "Audit", "Reads a researcher's pipeline, finds a look-ahead leak at the exact line, measures its impact and proves the fix by re-running it.", "AuditFinding"],
+            ["search", "Research", "Turns research ideas, its own and the researcher's, into return-blind features; checks their distribution, variation and comparability across liquidity, size and sector; proposes a small set to freeze.", "CandidateFeatureSet"]]
+          .map(([ic, t, d, o]) => el("div", {class: "card"}, el("div", {class: "icon"}, icon(ICONS[ic])), el("h3", {}, t), el("p", {}, d), el("span", {class: "badge"}, "writes ", o)))),
+      el("p", {class: "muted", style: "font-size:14px;margin-top:16px"}, "Next: turning a researcher's idea into executable hypotheses with explicit assumptions, tested on the frozen feature set.")),
+    el("section", {class: "section"},
+      el("div", {class: "grid g2", style: "align-items:center;gap:40px"},
+        el("div", {},
+          el("div", {class: "eyebrow"}, "Design principles"),
+          el("h2", {}, "Agents do the heavy lifting. Humans make the calls."),
+          el("p", {class: "lede", style: "margin-bottom:0"}, `${PRODUCT} does not trade, size positions or manage risk; those decisions stay with people. It accelerates the research side (data, analysis, features and signals) and makes every step verifiable and traceable, so a researcher can trust a result or see exactly where it went wrong.`)),
+        el("div", {class: "grid", style: "gap:12px"},
+          ...[["cpu", "Deterministic tools compute every number", "Language models never state a statistic in free text; each claim cites a logged tool run."],
+              ["layers", "Typed, validated handoffs", "Agents pass structured objects with provenance, checked before the next agent may use them."],
+              ["user", "Humans sign off at gates", "Cleaning (G0), the timing rule (G1), the feature ideas (G2) and the feature set (G3) are approved by a person before anything builds on them."],
+              ["check", "Every run is registered", "Tool calls, inputs and code version are logged, so every result is reproducible."]]
+            .map(([ic, t, d]) => el("div", {class: "card", style: "display:flex;gap:16px;padding:18px"}, el("div", {class: "icon", style: "margin:0;flex:none"}, icon(ICONS[ic])),
+                                     el("div", {}, el("h3", {style: "margin-bottom:4px"}, t), el("p", {style: "margin:0;font-size:14px"}, d))))))),
+    navfoot(null, "framework", "The framework"));
+}
+
+function pageFramework() {
+  const N = (name, out) => el("div", {class: "fnode"}, el("div", {class: "n"}, name), out ? el("div", {class: "o"}, out) : null);
+  const Gt = name => el("div", {class: "fnode gate"}, icon(ICONS.user), el("span", {class: "n"}, name));
+  const sep = () => el("div", {class: "fsep", "aria-hidden": "true"}, "→");
+  const roster = [
+    ["Orchestrator", "Plans, routes tasks, tracks budget and validates every agent's output before it moves on.", "TaskPlan"],
+    ["Data Research Agent", "Field meanings from the docs; coverage, missing data, distributions, breaks; what the data can support; cleaning proposals. Return-blind.", "DatasetCard + findings"],
+    ["PIT Agent", "Separates event, publication and first-tradable time; flags time zones, revisions, backfill.", "PITContract"],
+    ["Code Auditor", "Traces a researcher's pipeline, locates leaks, estimates impact, proposes and verifies patches.", "AuditFinding[]"],
+    ["Research EDA Agent", "Turns research ideas (its own and the researcher's) into features on the PIT view and checks their distribution, variation and comparability, return-blind.", "CandidateFeatureSet"],
+    ["Predictive Planner", "Pre-registers, before any return is seen, each frozen feature's expected sign, horizons and the controls it must survive.", "PredictionPlan"],
+    ["Predictive EDA Agent", "Tests the signed plan through a returns vault that shows it the discovery years only; every test is counted.", "ResearchObservation[]"],
+    ["Critic", "Attacks every validated finding from its outputs only; every critique is an executable test judged by a fixed rule.", "Critique[]"],
+  ];
+  const modCard = m => el("div", {class: "card hi"}, el("div", {style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"},
+      el("div", {class: "icon", style: "margin:0"}, icon(m.id === "alfred" ? ICONS.trend : ICONS.shield)), badge("built", "Case study")),
+    el("h3", {}, m.name), el("div", {class: "t2", style: "font-size:13px;margin-bottom:8px"}, m.subtitle),
+    el("p", {}, m.id === "alfred" ? "Audit mode on macro data: when each number was published, and which revision was known. Exact ground truth from every published vintage."
+                                  : "Audit mode on SEC filings: when each filing became public and tradable. Exact ground truth from EDGAR acceptance timestamps."),
+    el("button", {class: "btn primary small", onclick: () => go(`mod-${m.id}`)}, "Open the case study →"));
+  return el("div", {},
+    el("div", {class: "eyebrow"}, "The framework"),
+    el("h2", {}, `${PRODUCT} is a team of specialist agents around one shared, validated state.`),
+    el("p", {class: "lede"}, "Two operating modes share the same agents. Onboarding mode turns a raw dataset into a research-ready contract. Audit mode checks an existing pipeline against that contract. Humans sign off at four gates (cleaning, data contract, idea review, feature freeze). Each dataset plugs in as a profile: its tables, documents, tools and answer key; the agents stay the same."),
+    el("div", {class: "card"},
+      el("div", {class: "lane"}, el("div", {class: "lname"}, "Onboarding mode", el("small", {}, "raw dataset + docs → research")),
+        el("div", {class: "flow"}, N("Data Research Agent", "DatasetCard + findings"), sep(), Gt("G0 cleaning"), sep(), N("PIT Agent", "PITContract"), sep(), Gt("G1 data contract"), sep(),
+           N("PIT research view", "decision-time table"), sep(), N("Research EDA: ideas", "IdeaPlan"), sep(), Gt("G2 idea review"), sep(), N("Research EDA: build", "CandidateFeatureSet"), sep(), Gt("G3 feature freeze"), sep(),
+           N("Experiment ⇄ Critic", "next: Result, Critique"))),
+      el("div", {class: "lane"}, el("div", {class: "lname"}, "Audit mode", el("small", {}, "existing research pipeline → verified fix")),
+        el("div", {class: "flow"}, N("Data Research Agent", "DatasetCard"), sep(), N("PIT Agent", "PITContract"), sep(), Gt("G1 sign-off"), sep(),
+           N("Code Auditor", "AuditFinding[]"), sep(), N("Deterministic re-run", "verified patch"), sep(), N("Experiment ⇄ Critic", "before/after")))),
+    el("section", {class: "section"},
+      el("div", {class: "modhead"}, el("div", {}, el("div", {class: "eyebrow"}, "Modules"), el("h2", {style: "margin:0"}, "Case studies built on the framework"))),
+      el("div", {class: "grid g3"}, ...MODS.map(modCard),
+        el("div", {class: "card"}, el("div", {style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"}, el("div", {class: "icon", style: "margin:0"}, icon(ICONS.search)), badge("built", "Module")),
+          el("h3", {}, "Research EDA"), el("p", {}, "Phase A, return-blind: research ideas reviewed at G2, built on the point-in-time panel, characterized against liquidity, size and sector, frozen at G3. Phase B: pre-registered tests against returns (G4), validation on held-out years, the Critic, costs, and a locked test released at G5."),
+          D.eda ? el("button", {class: "btn primary small", onclick: () => go("mod-eda")}, "Open Research EDA →") : null))),
+    el("section", {class: "section"},
+      el("div", {class: "eyebrow"}, "Agent roster"),
+      el("div", {class: "grid g4"}, ...roster.map(([n, d, w]) => el("div", {class: "card agent"},
+        el("h3", {style: "margin:0"}, n), el("p", {style: "margin:0;font-size:14px"}, d), el("div", {class: "writes"}, "→ ", w))))),
+    navfoot("mission", D.research ? "mod-research" : `mod-${MODS[0].id}`, D.research ? "Data Research" : MODS[0].name));
+}
+
+const HOW = {
+  form4: {task: "A researcher wants to test whether insider purchases predict returns. Their script turns SEC Form 4 filings into an event table: one row per open-market purchase by an officer or director, with the date the backtest may first trade on it (asof_date).",
+          truth: "The SEC's EDGAR system records the exact second each filing was accepted, which is when it became public. From it, the first market open at which anyone could trade on each filing is known exactly, for every row.",
+          agents: "the raw filings tables, the SEC's documentation, the EDGAR acceptance index and one script"},
+  alfred: {task: "A researcher wants macro-regime features for a backtest. Their script turns six US macro series (payrolls, unemployment, CPI, GDP, industrial production, retail sales) into a table: one row per series and period, with the value and the date the backtest may first use it (asof_date).",
+           truth: "ALFRED (the St. Louis Fed's archive) keeps every value ever published for every period, with the date it was published. So for every row it is known exactly when the first value appeared, and which value was current on any later date.",
+           agents: "the vintage tables, FRED/ALFRED documentation and one script"},
+};
+function howBuilt(M) {
+  const H = HOW[M.id], leaky = M.variants.filter(v => M.gold[v].leak);
+  const item = (n, t, body) => el("div", {style: "display:flex;gap:14px;margin-top:12px"},
+    el("span", {class: "kbd", style: "height:22px;min-width:22px;display:inline-grid;place-items:center;font-size:12px"}, String(n)),
+    el("div", {}, el("strong", {}, t), el("div", {class: "t2", style: "font-size:14px;margin-top:2px"}, body)));
+  return el("div", {class: "card", style: "margin-bottom:18px"}, el("h4", {}, "How this test is built"),
+    item(1, "The research task", H.task),
+    item(2, "The bug we test for: look-ahead", `A row is used before it was public (or with a value that was published only later). Nothing crashes: the backtest simply knows the future, so the signal looks better than it could ever trade.`),
+    item(3, "We planted the bugs ourselves", el("span", {}, `We wrote one correct script and ${leaky.length} copies of it, each with exactly one line changed to a mistake researchers really make: `,
+      ...leaky.flatMap((v, i) => [el("strong", {}, M.short[v]), ` (${M.what[v].replace(/\.$/, "")})`, i < leaky.length - 1 ? "; " : "."]))),
+    item(4, "The exact answer key", `${H.truth} So the share of rows each script uses too early is measured exactly, not judged.`),
+    item(5, "What the agents get", `Only ${H.agents}, with no hint whether the script is leaky or where. They must work out when each record became public (a person signs that rule at gate G1), find the faulty line, measure its impact, and prove a patch by re-running the script.`));
+}
+
+function pageModule(M) {
+  const story = STORY[M.id](M), ev = EVIDENCE[M.id](M);
+  const replayRun = M.runs[REPLAY_VARIANT[M.id]] || Object.values(M.runs).find(r => M.gold[r.variant].leak) || Object.values(M.runs)[0];
+  const facts = [...M.tables.map(t => ({v: t.rows, l: [el("strong", {}, t.table), ` · ${t.desc}`]})), ...M.facts.map(f => ({v: f.v, l: f.l}))];
+  if (M.id === "form4") facts.push({v: M.calendar.n_days, l: `NYSE trading days (${M.calendar.start.slice(0, 4)}–${M.calendar.end.slice(0, 4)}, from SPY)`});
+  const steps = [
+    ["Problem setting", el("div", {},
+      el("h2", {}, story.head), el("p", {class: "lede"}, story.lede), howBuilt(M), story.card,
+      el("div", {class: "grid g2", style: "margin-top:18px"},
+        el("div", {class: "card"}, el("h4", {}, "The four scripts audited (each differs from the clean one in one line)"),
+          el("div", {class: "grid", style: "gap:12px;margin-top:14px"}, ...M.variants.map(v => el("div", {class: "variant"}, el("span", {class: "sw", style: `background:${vcolor(M, v)}`}),
+            el("div", {}, el("strong", {}, M.short[v]), "  ", M.gold[v].leak ? badge("", "planted leak") : badge("built", "control"),
+               el("div", {class: "t2", style: "font-size:13px;margin-top:3px"}, M.what[v]), el("div", {style: "margin-top:5px"}, el("code", {}, M.gold[v].asof_code))))))),
+        el("div", {class: "card"}, el("h4", {}, "Data used"),
+          el("div", {class: "facts", style: "grid-template-columns:repeat(2,minmax(0,1fr))"}, ...facts.map(f => el("div", {class: "fact"}, el("div", {class: "v num"}, fmtInt(f.v)), el("div", {class: "l"}, f.l)))),
+          el("p", {style: "font-size:13px;margin:14px 0 0"}, `Source: ${M.source} Documentation the agents read: ${M.docs.join("; ")}.`),
+          el("p", {style: "font-size:13px;margin:8px 0 0"}, M.truth))),
+      el("div", {class: "card", style: "margin-top:18px"}, el("h4", {}, `Across all ${fmtInt(M.gold.clean.true_lookahead.n_events)} ${M.unit}: share using information that was not yet public`), earlyBars(M)))],
+    ["Agents at work", el("div", {},
+      el("h2", {}, "Three agents and a human gate audit the pipeline"),
+      el("p", {class: "lede"}, `A recorded run on the “${M.short[replayRun?.variant] || "–"}” pipeline. Every number comes from a deterministic tool; every answer is checked before the next agent may use it; a person signs off the rule that decides tradability.`),
+      el("div", {class: "card"}, replayRun ? Replay(replayRun).el : el("p", {}, "No recorded run in this batch yet.")))],
+    ["The evidence", el("div", {}, el("h2", {}, ev.head), el("p", {class: "lede"}, ev.lede), ev.body)],
+    ["The catch", el("div", {},
+      el("h2", {}, "The exact line, the fix, and proof that the fix works"),
+      el("p", {class: "lede"}, "The auditor's patch is re-run deterministically against the signed availability rule. A fix is accepted only if look-ahead drops to zero with no rows lost."),
+      el("div", {class: "grid g3"}, ...leakyOf(M).filter(v => M.runs[v]).map(v => {
+        const f = M.runs[v].state.audit_report?.findings?.[0];
+        return el("div", {class: "card"}, el("div", {style: "display:flex;align-items:center;margin-bottom:12px"}, el("span", {class: "key", style: `background:${vcolor(M, v)}`}), el("h3", {style: "margin:0"}, M.short[v])),
+          codeView(M, M.runs[v], 1),
+          f ? el("div", {style: "margin-top:16px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"},
+                 el("span", {class: "kpi", style: "font-size:30px;color:var(--critical-text)"}, pct(f.estimated_impact.before)), el("span", {class: "muted"}, "→"),
+                 el("span", {class: "kpi", style: "font-size:30px;color:var(--good-text)"}, pct(f.verified_share_before_tradable ?? f.estimated_impact.after)),
+                 el("span", {class: "t2", style: "font-size:13px"}, "of rows use non-public information")) : el("p", {}, "No finding."),
+          el("div", {style: "margin-top:8px"}, f?.verified_by_run ? status("good", "Fix verified by re-running the pipeline") : status("warning", f ? "Fix not verified" : "Leak missed")));
+      })))],
+    ["Results", resultsStep(M)],
+  ];
+  let cur = 0;
+  const bar = el("div", {class: "steps", role: "tablist"});
+  const secs = steps.map(([, n]) => el("div", {class: "step"}, n));
+  const set = i => { cur = i; secs.forEach((x, k) => x.classList.toggle("active", k === i));
+    [...bar.children].forEach((b, k) => b.setAttribute("aria-current", k === i ? "step" : "false")); updateProgress(); };
+  steps.forEach(([n], i) => bar.append(el("button", {role: "tab", onclick: () => set(i)}, el("span", {class: "i"}, i + 1), n)));
+  const ids = PAGES.map(p => p[0]), me = ids.indexOf(`mod-${M.id}`);
+  const page = el("div", {},
+    el("div", {class: "modhead"}, el("div", {}, el("div", {class: "eyebrow"}, `Case study · ${M.name}`), el("div", {class: "t2", style: "font-size:15px"}, M.subtitle)), bar),
+    ...secs,
+    el("div", {class: "navfoot"}, el("button", {class: "btn", onclick: () => cur > 0 ? set(cur - 1) : go(ids[me - 1])}, "← Back"),
+      el("span", {class: "muted", style: "font-size:12px"}, el("span", {class: "kbd"}, "←"), " ", el("span", {class: "kbd"}, "→"), "  to navigate"),
+      el("button", {class: "btn primary", onclick: () => cur < steps.length - 1 ? set(cur + 1) : go(ids[me + 1])}, "Next →")));
+  page.stepper = {get cur() { return cur; }, n: steps.length, set};
+  set(0);
+  return page;
+}
+
+/* ================= Data Research (Understand) ================= */
+function pageResearch() {
+  const R = D.research, B = R.brief, img = f => R.figures[f] ? el("div", {class: "figcard"}, el("img", {alt: "figure", src: `data:image/png;base64,${R.figures[f]}`})) : null;
+  const cap = B.capability || {};
+  const dims = ["history_depth", "cross_sectional_breadth", "update_frequency", "coverage_stability", "event_breadth"].filter(k => cap[k]);
+  const bench = R.benchmarks.find(b => b.profile === "finra_defects"), small = R.benchmarks.find(b => b.profile === "finra_small");
+  const DEF = {D1: "Duplicate rows", D2: "×100 unit change for a third of symbols", D3: "Zeros written for missing values",
+               D4: "Coverage hole (30% of symbols gone for a month)", D5: "Short volume larger than total volume"};
+  const steps = [
+    ["The data", el("div", {},
+      el("h2", {}, "What is this dataset, and what can it support?"),
+      el("p", {class: "lede"}, `The Data Research Agent read the documentation and profiled every table of ${B.dataset_id}: first what the dataset is, then what each field means (grounded in the docs, with its kind, unit, and what a zero or a missing value means).`),
+      B.overview ? el("div", {class: "card hi", style: "margin-bottom:18px"}, el("h3", {}, "What this dataset is"),
+        el("p", {style: "font-size:15px"}, B.overview.summary),
+        el("table", {}, ...[["Publisher", B.overview.publisher], ["Purpose", B.overview.purpose], ["Market", B.overview.market],
+            ["Entities", el("div", {}, ...B.overview.entities.map(x => el("div", {}, x.type, el("span", {class: "muted"}, `  ${x.share}`))))],
+            ["Values", B.overview.values.join("; ")], ["Frequency", B.overview.frequency], ["Period", B.overview.period],
+            ["Typical uses", B.overview.typical_uses.join("; ")], ["Caveats", (B.overview.caveats || []).join("; ")]]
+          .map(([k, v]) => el("tr", {}, el("td", {class: "t2", style: "width:130px;white-space:nowrap"}, k), el("td", {style: "font-size:14px"}, v))))) : null,
+      ...(B.table_preview || []).map(t => el("div", {class: "card", style: "margin-bottom:18px;overflow-x:auto"},
+        el("h3", {}, "Table ", el("code", {}, t.table), el("span", {class: "muted", style: "font-weight:400;font-size:14px"}, `  ${fmtInt(t.n_rows)} rows × ${t.n_columns} columns · first ${t.head.length} rows`)),
+        el("table", {}, el("tr", {}, ...t.columns.map(c => el("th", {}, c.name, el("div", {class: "muted", style: "font-weight:400;font-size:11px"}, c.dtype)))),
+          ...t.head.map(row => el("tr", {}, ...row.map(v => el("td", {style: "font-family:var(--mono);font-size:12px;white-space:nowrap"}, v))))))),
+      el("h3", {style: "margin-top:8px"}, "What each field means"),
+      el("div", {class: "card", style: "overflow-x:auto"}, el("table", {},
+        el("tr", {}, ...["Field", "Kind", "Unit", "Meaning", "Zero vs missing"].map(h => el("th", {}, h))),
+        ...B.fields.filter(f => f.kind !== "identifier" || f.table === B.tables[0]?.table).map(f => el("tr", {}, el("td", {}, el("code", {}, `${f.table}.${f.name}`)), el("td", {}, f.kind || ""),
+          el("td", {}, f.unit || ""), el("td", {class: "t2"}, f.meaning), el("td", {class: "t2"}, f.zero_vs_missing || ""))))),
+      el("div", {class: "card", style: "margin-top:18px"}, el("h3", {}, "What the data can support"),
+        el("table", {}, el("tr", {}, el("th", {}, "Dimension"), el("th", {}, "Rating"), el("th", {}, "Why")),
+          ...dims.map(k => el("tr", {}, el("td", {}, k.replaceAll("_", " ")), el("td", {}, badge(cap[k].rating === "strong" ? "built" : cap[k].rating === "weak" ? "planned" : "progress", cap[k].rating)), el("td", {class: "t2"}, cap[k].note)))),
+        el("p", {style: "margin-top:12px;font-size:14px"}, el("strong", {}, "Suitable for: "), (cap.suitable_for || []).join("; ")),
+        el("p", {style: "font-size:14px"}, el("strong", {}, "Weak for: "), (cap.weak_for || []).join("; ")),
+        el("p", {style: "font-size:14px;margin:0"}, el("strong", {}, "Major limits: "), (cap.major_limits || []).join("; "))))],
+    ["Agent at work", el("div", {},
+      el("h2", {}, "How a quant researcher would study it, step by step"),
+      el("p", {class: "lede"}, "Two passes. Semantics: read the docs, profile the tables. Profiling: ask a question, run the tool that answers it (each draws a figure), read the numbers, decide the next question. At most two data tools per turn; every finding is recorded and checked on the spot."),
+      el("div", {class: "card"}, el("ol", {class: "steplog"}, ...B.steps.map(s => el("li", {}, el("strong", {style: "color:var(--text)"}, s.what), el("span", {class: "muted"}, `  · ${s.pass} · ${s.run_id}  `), s.result)))))],
+    ["Findings", el("div", {},
+      el("h2", {}, "What it found"),
+      el("p", {class: "lede"}, "Each observation cites the tool runs that measured it; dates and levels come from the numbers, not from reading a chart. Tools also raise flags for material facts, and the findings must address every one."),
+      el("div", {class: "grid g2"}, ...B.observations.map(o => el("div", {class: "card", style: "padding:18px"},
+        el("div", {style: "display:flex;gap:10px;align-items:flex-start"}, el("span", {class: `sev ${o.severity}`}, o.severity), el("span", {style: "font-size:14px"}, o.claim)),
+        o.next_question ? el("div", {class: "muted", style: "font-size:12px;margin-top:6px"}, `next: ${o.next_question}`) : null, img(o.figure)))))],
+    ["Clean & trust", el("div", {},
+      el("h2", {}, "Proposed cleaning, representation, and open questions"),
+      el("p", {class: "lede"}, "Cleaning is only proposed: the researcher approves it at gate G0, and it writes derived copies. Raw data is never modified. Flags are preferred over dropping rows."),
+      el("div", {class: "grid g2"},
+        el("div", {class: "card"}, el("h3", {}, "Cleaning recipe"), B.cleaning ? el("table", {}, el("tr", {}, el("th", {}, "Step"), el("th", {class: "r"}, "Rows"), el("th", {}, "Why")),
+          ...B.cleaning.steps.map(s => el("tr", {}, el("td", {}, el("code", {}, s.op)), el("td", {class: "r"}, `${fmtInt(s.effect.rows_removed ?? s.effect.rows_flagged)} ${s.effect.rows_removed != null ? "removed" : "flagged"}`), el("td", {class: "t2"}, s.reason)))) : el("p", {}, "No cleaning proposed.")),
+        el("div", {class: "card"}, el("h3", {}, "How to represent the main fields"), el("ul", {style: "padding-left:18px;margin:0;font-size:14px;line-height:1.6"},
+          ...B.preprocessing.map(p => el("li", {}, el("strong", {}, p.field), ": ", p.candidate_processing.join(", ")))))),
+      el("div", {class: "card", style: "margin-top:18px"}, el("h3", {}, "Warnings and open questions for the researcher"),
+        el("ul", {style: "padding-left:18px;margin:0;font-size:14px;line-height:1.7"}, ...B.warnings.map(w => el("li", {}, "⚠ ", w)), ...B.open_questions.map(q => el("li", {}, "? ", q)))))],
+    ["Benchmark", el("div", {},
+      el("h2", {}, "Does it find what is really wrong with a dataset?"),
+      el("p", {class: "lede"}, "Real FINRA data (2022–2024, 1,398 symbols) with five defects planted at known places, plus a deliberately thin sample (1 year × 40 symbols). The agent never sees the answer key; the scorer reads only its findings and applies its cleaning recipe."),
+      bench ? el("div", {class: "card", style: "overflow-x:auto"}, el("table", {}, el("tr", {}, el("th", {}, "Planted defect"), el("th", {class: "r"}, "Found"), el("th", {class: "r"}, "Fixed by the recipe")),
+        ...Object.keys(DEF).map(k => el("tr", {}, el("td", {}, DEF[k]), el("td", {class: "r"}, bench.benchmark.detected[k] ? status("good", "yes") : status("serious", "no")),
+          el("td", {class: "r"}, k in bench.benchmark.fixed ? (bench.benchmark.fixed[k] ? status("good", "yes") : status("serious", "no")) : "—")))),
+        el("p", {style: "font-size:14px;margin-top:12px"}, `${bench.benchmark.n_detected}/5 defects found · ${fmtInt(bench.benchmark.rows_dropped)} rows dropped, ${fmtInt(bench.benchmark.rows_dropped_beyond_defects)} of them clean · field meanings ${pct(bench.semantic_accuracy, 0)}`)) : null,
+      small ? el("div", {class: "card", style: "margin-top:18px"}, el("h3", {}, "Viability: 1 year × 40 symbols"),
+        el("p", {style: "font-size:14px;margin:0"}, `History rated ${small.benchmark.capability.history_depth}, cross-sectional breadth rated ${small.benchmark.capability.cross_sectional_breadth} `,
+          Object.values(small.benchmark.correct).every(Boolean) ? status("good", "correct: too thin for broad cross-sectional research") : status("serious", "incorrect"))) : null,
+      el("p", {class: "muted", style: "font-size:13px;margin-top:14px"}, "A development benchmark: the agent's checks were improved while studying these runs (none reads the answer key). The breadth rule of thumb (<2 years or <100 names = weak) is stated in the research_breadth tool's reading."))],
+  ];
+  let cur = 0;
+  const bar = el("div", {class: "steps", role: "tablist"}), secs = steps.map(([, n]) => el("div", {class: "step"}, n));
+  const set = i => { cur = i; secs.forEach((x, k) => x.classList.toggle("active", k === i));
+    [...bar.children].forEach((b, k) => b.setAttribute("aria-current", k === i ? "step" : "false")); updateProgress(); };
+  steps.forEach(([n], i) => bar.append(el("button", {role: "tab", onclick: () => set(i)}, el("span", {class: "i"}, i + 1), n)));
+  const ids = PAGES.map(p => p[0]), me = ids.indexOf("mod-research");
+  const page = el("div", {},
+    el("div", {class: "modhead"}, el("div", {}, el("div", {class: "eyebrow"}, "Understand · Data Research"), el("div", {class: "t2", style: "font-size:15px"}, `An unfamiliar dataset: ${B.dataset_id}`)), bar),
+    ...secs,
+    el("div", {class: "navfoot"}, el("button", {class: "btn", onclick: () => cur > 0 ? set(cur - 1) : go(ids[me - 1])}, "← Back"),
+      el("span", {class: "muted", style: "font-size:12px"}, el("span", {class: "kbd"}, "←"), " ", el("span", {class: "kbd"}, "→"), "  to navigate"),
+      el("button", {class: "btn primary", onclick: () => cur < steps.length - 1 ? set(cur + 1) : go(ids[me + 1])}, "Next →")));
+  page.stepper = {get cur() { return cur; }, n: steps.length, set};
+  set(0);
+  return page;
+}
+
+/* ================= Research EDA, phase A (Research) ================= */
+function pageEDA() {
+  const E = D.eda, R = E.report, P = R.panel || {}, W = R.wrapup || {};
+  const img = f => E.figures[f] ? el("div", {class: "figcard"}, el("img", {alt: "figure", src: `data:image/png;base64,${E.figures[f]}`})) : null;
+  const COND = ["adv_proxy", "size_float", "sector"];
+  const dep = x => { if (!x || x[0] == null) return "—"; const [v, st] = x;
+    return status(st === "strong" ? "serious" : st === "moderate" ? "warning" : "good", `${v >= 0 ? "+" : ""}${Number(v).toFixed(2)} ${st}`); };
+  const DEC = {keep: "info", drop: "issue", normalize: "warning", residualize: "warning", bucket: "warning", unresolved: "warning"};
+  const seen = new Set(), once = f => { if (!f || seen.has(f)) return null; seen.add(f); return img(f); };
+  const ideaCard = i => el("div", {class: "card", style: "padding:18px"},
+    el("div", {style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap"}, el("strong", {style: "font-size:16px"}, i.name),
+      badge(i.source === "researcher" ? "progress" : "built", i.source === "researcher" ? "researcher's idea" : "agent's idea"),
+      i.approved ? status("good", "approved at G2") : status("warning", "not approved")),
+    el("p", {style: "font-size:14px;margin:10px 0 6px"}, i.idea),
+    i.researcher_text ? el("div", {class: "muted", style: "font-size:12px;margin-bottom:6px"}, `In the researcher's words: “${i.researcher_text}”`) : null,
+    el("table", {}, ...[["Mechanism", i.mechanism], ["Assumes", i.assumptions.join("; ")], ["Expected (untested)", i.expected_direction],
+        ["Built as", el("div", {}, ...i.definitions.map(d => el("div", {}, el("code", {}, d.name), ` = ${d.definition}`)))],
+        ["Outcome", i.candidates.length ? `candidate: ${i.candidates.join(", ")}` : i.set_aside.length ? `set aside: ${i.set_aside[0]}` : "—"]]
+      .map(([k, v]) => el("tr", {}, el("td", {class: "t2", style: "width:140px;font-size:13px"}, k), el("td", {style: "font-size:13px"}, v)))));
+  const candTable = (cands, note) => el("div", {class: "card", style: "overflow-x:auto"}, el("table", {},
+      el("tr", {}, el("th", {}, "Feature"), el("th", {}, "Idea"), el("th", {}, "Definition"), el("th", {}, "Why this representation"),
+         ...COND.map(c => el("th", {class: "r"}, c === "adv_proxy" ? "vs liquidity" : c === "size_float" ? "vs size" : "vs sector"))),
+      ...cands.map(c => el("tr", {}, el("td", {}, el("code", {}, c.name)), el("td", {class: "t2"}, c.idea || ""), el("td", {class: "t2"}, c.definition),
+         el("td", {class: "t2", style: "font-size:13px"}, c.rationale), ...COND.map(k => el("td", {class: "r"}, dep(c.dependence[k])))))),
+    note ? el("p", {class: "muted", style: "font-size:12px;margin:10px 0 0"}, note) : null);
+  const BENCH = [["Abnormal short selling vs the stock's own 20 days", "surprise of ShortVolume / TotalVolume over 20 records", "built faithfully"],
+                 ["Vendor attention per unit of trading activity", "vendor_mentions ÷ ADV (or ÷ TotalVolume)", "built faithfully; free of the planted liquidity dependence"],
+                 ["Sentiment relative to same-sector peers", "sector-relative (or sector-residualized) vendor_sentiment", "built faithfully; free of the planted sector bias"],
+                 ["The quality score as a slow characteristic", "vendor_quality as is (or its rank)", "built faithfully; not neutralized (it has no dependence)"]];
+  const CHECKS = [["I1_faithful", "1 built"], ["I2_faithful", "2 built"], ["I2_scale_free", "2 no liquidity tilt"], ["I3_faithful", "3 built"],
+                  ["I3_sector_neutral", "3 no sector bias"], ["I4_faithful", "4 built"], ["I4_not_neutralized", "4 left alone"], ["own_ideas_explored", "own ideas"]];
+  const cov = (P.conditioner_coverage_share || {});
+  const ideas = R.ideas || [], mine = ideas.filter(i => i.source === "researcher"), own = ideas.filter(i => i.source === "agent");
+  const steps = [
+    ["The panel", el("div", {},
+      el("h2", {}, "From a signed contract to a panel a researcher can explore"),
+      el("p", {class: "lede"}, "Once the timing is signed off (G1), every record sits at its decision date: the first session whose open may use it. The Research EDA Agent works only on that point-in-time panel. It has no returns, prices or P&L, so no idea can be shaped by how well it would have predicted."),
+      el("div", {class: "grid g2"},
+        el("div", {class: "card"}, el("h3", {}, "The research panel"),
+          el("p", {style: "font-size:14px"}, `${fmtInt(P.entities)} entities × ${fmtInt(P.dates)} decision dates (${P.first_date} to ${P.last_date}), ${fmtInt(P.rows)} rows.`),
+          el("p", {style: "font-size:14px"}, el("strong", {}, "Universe: "), P.universe || ""),
+          el("p", {style: "font-size:14px;margin:0"}, el("strong", {}, "Value fields: "), (P.value_fields || []).join(", "))),
+        el("div", {class: "card"}, el("h3", {}, "What every feature is checked against"),
+          el("table", {}, el("tr", {}, el("th", {}, "Conditioner"), el("th", {}, "Meaning"), el("th", {class: "r"}, "Coverage")),
+            ...Object.entries(P.conditioners || {}).map(([k, v]) => el("tr", {}, el("td", {}, el("code", {}, k)), el("td", {class: "t2", style: "font-size:13px"}, v),
+              el("td", {class: "r"}, cov[k] != null ? pct(cov[k], 0) : "—")))))))],
+    ["Ideas", el("div", {},
+      el("h2", {}, "Start from ideas, not from columns"),
+      el("p", {class: "lede wide"}, `A quant researcher asks what economic behavior the data could reveal, then measures it. The agent proposes ideas of its own and translates the researcher's ideas from plain words into buildable definitions. Each idea states its mechanism and assumptions; the direction it suggests is written down as a hypothesis, never tested here. A person reviews the ideas at gate G2 before anything is built.`),
+      el("div", {class: "grid g2"}, ...[...mine, ...own].map(ideaCard)))],
+    ["Agent at work", el("div", {},
+      el("h2", {}, "Survey, brainstorm, build, characterize"),
+      el("p", {class: "lede"}, "Three passes with fresh context. Survey: compare every raw field against liquidity, size and sector. Ideas: propose and translate feature ideas. Build and characterize: the approved definitions are built (a closed language, never free code); the agent looks at each feature's distribution, its variation across stocks and over time, its persistence and its dependence on liquidity, size and sector, compares versions, and proposes one representation per idea."),
+      el("div", {class: "card"}, el("ol", {class: "steplog"}, ...R.steps.map(st => el("li", {}, el("strong", {style: "color:var(--text)"}, st.what),
+        el("span", {class: "muted"}, `  · ${st.pass} · ${st.run_id}  `), st.result)))))],
+    ["Findings", el("div", {},
+      el("h2", {}, "What each idea looks like in the data"),
+      el("p", {class: "lede wide"}, "Distribution, variation and dependence, per idea. A dependence is a question, not a verdict: a feature that rises with liquidity may reflect measurement bias, economic scale or a real interaction, and each calls for a different treatment. Each finding states what it cannot yet tell apart; a feature with no dependence is left alone."),
+      el("div", {class: "card", style: "margin-bottom:18px;padding:16px 18px"}, el("h3", {style: "margin-bottom:8px"}, "How to read the tag on each finding"),
+        el("table", {}, ...[["keep", "info", "Comparable across the universe: use it as is."],
+                            ["unresolved", "warning", "A dependence is found but its cause is not yet known; the finding lists the explanations and the versions to compare."],
+                            ["normalize · residualize · bucket", "warning", "The dependence should be removed: divide by scale, regress it out, or study within buckets."],
+                            ["drop", "issue", "This version (or idea) is set aside, with the evidence why."]]
+          .map(([t, k, d]) => el("tr", {}, el("td", {style: "white-space:nowrap"}, el("span", {class: `sev ${k}`}, t)), el("td", {class: "t2", style: "font-size:13px"}, d))))),
+      el("div", {class: "grid g2"}, ...R.observations.map(o => el("div", {class: "card", style: "padding:18px"},
+        el("div", {style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px"}, el("code", {}, o.feature),
+          o.idea ? el("span", {class: "badge"}, o.idea) : null, el("span", {class: "muted", style: "font-size:12px"}, `vs ${o.conditioner}`),
+          el("span", {class: `sev ${DEC[o.decision] || "info"}`}, o.decision)),
+        el("div", {style: "font-size:14px"}, o.claim),
+        o.possible_explanations && o.possible_explanations.length ? el("div", {class: "muted", style: "font-size:12px;margin-top:6px"}, `could be: ${o.possible_explanations.join("; ")}`) : null,
+        once(o.figure)))))],
+    ["Candidate set", el("div", {},
+      el("h2", {}, "What gets frozen before anyone looks at returns"),
+      el("p", {class: "lede"}, "One representation per idea. The researcher freezes the set at gate G3: it is hashed (definitions plus panel) and its values are written once, so predictive work cannot drift toward whatever backtests best."),
+      candTable(R.candidates, "Dependence: mean same-date rank correlation with liquidity or size; for sector, the share of rank variance it explains (bias-adjusted). Green: negligible; amber: moderate; red: strong."),
+      R.gate ? el("p", {style: "font-size:14px;margin-top:14px"}, `G3 ${R.gate.approved ? "frozen" : "not approved"} by ${R.gate.decided_by}`, R.set_hash ? ` · set hash ${R.set_hash}` : "") : null,
+      (W.data_investigation_requests || []).length || (W.warnings || []).length ? el("div", {class: "card", style: "margin-top:18px"}, el("h3", {}, "Routed back and open questions"),
+        el("ul", {style: "padding-left:18px;margin:0;font-size:14px;line-height:1.7"},
+          ...(W.data_investigation_requests || []).map(r => el("li", {}, `→ ${r.route_to}: ${r.question}`)), ...(W.warnings || []).map(w => el("li", {}, "⚠ ", w)))) : null)],
+    ["Benchmark", el("div", {},
+      el("h2", {}, "Does it build the idea the researcher meant, and handle the data's biases?"),
+      el("p", {class: "lede wide"}, "The same FINRA panel with three vendor fields whose structure is known exactly: mention counts that scale with trading activity, a sentiment score with a sector bias, and a clean, persistent quality score. The researcher gives four ideas in plain words; each has reference constructions, so a translation is checked exactly (same-date rank correlation of at least 0.9 with a reference). Where the data carries a planted bias, the agent's feature must be free of it; the clean score must be left alone. The agent must also explore at least two ideas of its own."),
+      el("div", {class: "card", style: "overflow-x:auto"}, el("table", {}, el("tr", {}, el("th", {}, "#"), el("th", {}, "Researcher's idea"), el("th", {}, "Reference construction"), el("th", {}, "Passes when")),
+        ...BENCH.map(([a, b, c], i) => el("tr", {}, el("td", {}, String(i + 1)), el("td", {}, a), el("td", {class: "t2"}, b), el("td", {class: "t2"}, c))))),
+      E.benchmarks.length ? el("div", {class: "card", style: "overflow-x:auto;margin-top:18px"},
+        el("h3", {}, `${E.benchmarks.length} independent repeats of the same agent`),
+        el("p", {class: "t2", style: "font-size:13px"}, "Same code, same model (Qwen2.5-72B), temperature 0, same data and ideas; each repeat starts from scratch. Columns follow the numbered ideas above."),
+        el("table", {}, el("tr", {}, el("th", {}, "Repeat"), ...CHECKS.map(([, h]) => el("th", {class: "r"}, h)), el("th", {class: "r"}, "Score")),
+          ...E.benchmarks.map((b, i) => el("tr", {}, el("td", {}, `Repeat ${i + 1}`, el("span", {class: "muted", style: "font-size:11px"}, `  ${b.run}`)),
+            ...CHECKS.map(([k]) => el("td", {class: "r"}, b.passed[k] ? status("good", "✓") : status("serious", "✗"))), el("td", {class: "r"}, b.score))))) : null,
+      el("p", {class: "muted", style: "font-size:13px;margin-top:14px"}, "A development benchmark: the agent's checks were improved while studying runs (none reads the answer key). One model (Qwen2.5-72B), temperature 0."))],
+  ];
+  let cur = 0;
+  const bar = el("div", {class: "steps", role: "tablist"}), secs = steps.map(([, n]) => el("div", {class: "step"}, n));
+  const set = i => { cur = i; secs.forEach((x, k) => x.classList.toggle("active", k === i));
+    [...bar.children].forEach((b, k) => b.setAttribute("aria-current", k === i ? "step" : "false")); updateProgress(); };
+  steps.forEach(([n], i) => bar.append(el("button", {role: "tab", onclick: () => set(i)}, el("span", {class: "i"}, i + 1), n)));
+  const ids = PAGES.map(p => p[0]), me = ids.indexOf("mod-eda");
+  const page = el("div", {},
+    el("div", {class: "modhead"}, el("div", {}, el("div", {class: "eyebrow"}, "Research · Research EDA (phase A, return-blind)"), el("div", {class: "t2", style: "font-size:15px"}, "From research ideas to features on the point-in-time panel of FINRA short volume")), bar),
+    ...secs,
+    el("div", {class: "navfoot"}, el("button", {class: "btn", onclick: () => cur > 0 ? set(cur - 1) : go(ids[me - 1])}, "← Back"),
+      el("span", {class: "muted", style: "font-size:12px"}, el("span", {class: "kbd"}, "←"), " ", el("span", {class: "kbd"}, "→"), "  to navigate"),
+      el("button", {class: "btn primary", onclick: () => cur < steps.length - 1 ? set(cur + 1) : (ids[me + 1] ? go(ids[me + 1]) : go("mission"))}, "Next →")));
+  page.stepper = {get cur() { return cur; }, n: steps.length, set};
+  set(0);
+  return page;
+}
+
+/* model comparison: one small panel per metric; dot = mean over seeds, whisker = min–max */
+function pagePredict() {
+  const X = D.predict, R = X.report, P = R.plan || {}, S = P.split || {}, L = R.ledger || {}, G4 = R.plan_gate || {}, G5 = R.release_gate;
+  const img = f => X.figures[f] ? el("div", {class: "figcard"}, el("img", {alt: "figure", src: `data:image/png;base64,${X.figures[f]}`})) : null;
+  const ict = x => x && x.mean_ic != null && x.t_nw != null ? `${x.mean_ic >= 0 ? "+" : ""}${x.mean_ic.toFixed(4)} (t ${x.t_nw.toFixed(1)})` : "—";
+  const ST = {validated: ["good", "validated"], failed_validation: ["serious", "failed validation"], not_validated: ["warning", "not a discovery"],
+              locked_pass: ["good", "passed the locked test"], locked_fail: ["serious", "failed the locked test"], discovery: ["warning", "discovery only"]};
+  const OUT = {survived: "good", refuted: "serious", inconclusive: "warning"};
+  const flow = [["G3", "Frozen features", "Hashed definitions and values, fixed before any return is seen (phase A)."],
+                ["G4", "Pre-registration", "Expected sign, horizons and controls per feature, written by a planner with no returns; signed by the researcher together with the split."],
+                ["1", "Discovery", "The agent tests the plan through a returns vault that shows it the discovery years only. Every distinct test is counted; a finding needs |t| ≥ max(3, √(2 ln N))."],
+                ["2", "Validation", "The orchestrator re-runs every 'informative' finding unchanged on later years the agent never saw (same sign, |t| ≥ 2)."],
+                ["3", "Critic", "A standard robustness battery (no illiquid third, no penny stocks, each half of the sample) plus the Critic agent's own attacks, written from the findings' outputs only and judged by a fixed rule."],
+                ["4", "Costs", "The finding's long-short portfolio net of spreads and impact; the break-even spread."],
+                ["G5", "Release", "The researcher picks what goes to the locked test, with validation, critique and costs in view."],
+                ["5", "Locked test", "Opened once per feature set, ever. Every vault access is logged."]];
+  const PLANTS = [["P1", "abnormal short selling", "short-lived negative effect (1–5 sessions)", "found, survives every attack, passes the locked test"],
+                  ["P2", "vendor quality score", "slow positive effect (weeks)", "found at long horizons, passes the locked test"],
+                  ["P3", "raw mention count", "'predicts' only through a planted illiquidity premium", "called explained by liquidity, never released"],
+                  ["P4", "sector-relative sentiment", "works in discovery, reverses afterwards", "stopped at validation"],
+                  ["P5", "short-exempt share", "same-day effect only in the least liquid third", "refuted by the standard battery, not released"],
+                  ["P6", "short share of volume", "positive effect only in Technology; survives the battery", "refuted by the Critic agent itself (it must aim the sector attack), not released"],
+                  ["—", "volume shock, attention per activity", "nothing", "never validated"]];
+  const CHECKS = [["plan_signs", "plan signs"], ["P1_short_horizon_found", "P1 found"], ["P1_locked_pass", "P1 locked"], ["P2_slow_found", "P2 found"],
+                  ["P2_locked_pass", "P2 locked"], ["P3_liquidity_explained", "P3"], ["P3_attention_null", "null"], ["P4_regime_not_released", "P4"],
+                  ["null_not_validated", "null"], ["P5_refuted_by_critic", "P5 refuted"], ["P5_not_released", "P5 held"],
+                  ["P6_refuted_by_critic_agent", "P6 by Critic"], ["P6_not_released", "P6 held"], ["true_signals_not_refuted", "no false refutation"],
+                  ["locked_test_once", "locked once"]];
+  const obs = R.observations || [], val = obs.filter(o => o.validation);
+  const crit = (R.critiques || []), costed = obs.filter(o => o.costs);
+  const steps = [
+    ["The loop", el("div", {},
+      el("h2", {}, "From frozen features to one look at the future"),
+      el("p", {class: "lede wide"}, "Phase B asks whether a frozen, economically motivated feature carries information about future returns, and is built so that the answer cannot be talked into existence: the representation is fixed, the tests are pre-registered and counted, later data is held back, and an adversary attacks every survivor before the researcher decides what may see the locked test."),
+      el("div", {class: "card"}, el("table", {}, ...flow.map(([k, t, d]) => el("tr", {},
+        el("td", {style: "width:54px"}, k.startsWith("G") ? badge("progress", k) : el("span", {class: "kbd"}, k)),
+        el("td", {style: "width:170px"}, el("strong", {}, t)), el("td", {class: "t2", style: "font-size:13px"}, d))))),
+      el("p", {class: "muted", style: "font-size:13px;margin-top:12px"}, "Forward return: from the open of the decision date (the first open the signed timing rule allows) to the close h−1 sessions later, so the overnight move before entry is never counted. Controls (size, liquidity, beta, momentum, reversal, sector) use data up to the previous close."))],
+    ["Benchmark", el("div", {},
+      el("h2", {}, "Planted returns with an exact answer key"),
+      el("p", {class: "lede wide"}, "Synthetic returns on the real FINRA panel (935 stocks, 2021–2025) with six planted relations. Each repeat runs the whole loop from scratch with the same model; the score checks the planner, the agent, validation, the Critic and the gates against what was planted."),
+      el("div", {class: "card", style: "overflow-x:auto"}, el("table", {}, el("tr", {}, el("th", {}, ""), el("th", {}, "Feature"), el("th", {}, "Planted"), el("th", {}, "Passes when")),
+        ...PLANTS.map(([k, f, p, w]) => el("tr", {}, el("td", {}, k), el("td", {}, f), el("td", {class: "t2"}, p), el("td", {class: "t2"}, w))))),
+      X.benchmarks.length ? el("div", {class: "card", style: "overflow-x:auto;margin-top:18px"},
+        el("h3", {}, `${X.benchmarks.length} independent repeats on the released code`),
+        el("table", {}, el("tr", {}, el("th", {}, "Repeat"), ...CHECKS.map(([, h]) => el("th", {class: "r", style: "font-size:11px"}, h)), el("th", {class: "r"}, "Score"), el("th", {class: "r"}, "Tests")),
+          ...X.benchmarks.map((b, i) => el("tr", {}, el("td", {}, `Repeat ${i + 1}`),
+            ...CHECKS.map(([k]) => el("td", {class: "r"}, b.passed[k] === undefined ? "—" : b.passed[k] ? status("good", "✓") : status("serious", "✗"))),
+            el("td", {class: "r"}, b.score), el("td", {class: "r"}, b.n_trials || "—"))))) : null,
+      el("p", {class: "muted", style: "font-size:13px;margin-top:14px"}, "A development benchmark: the checks were improved while studying runs (none reads the answer key). One model (Qwen2.5-72B), temperature 0."))],
+    ["Real study: plan", el("div", {},
+      el("h2", {}, "FINRA short volume against CRSP returns"),
+      el("p", {class: "lede wide"}, "The five features frozen in the final Research EDA run on the real FINRA panel, tested against CRSP daily returns (licensed data: only aggregate statistics are shown). The planner pre-registered the tests; the researcher signed them with one change."),
+      el("div", {class: "grid g2"},
+        el("div", {class: "card"}, el("h3", {}, "Gate G4"), el("p", {style: "font-size:14px"}, `Signed by the ${G4.decided_by || "researcher"}.`),
+          G4.note ? el("p", {class: "t2", style: "font-size:13px"}, G4.note) : null),
+        el("div", {class: "card"}, el("h3", {}, "Split (decision dates)"), el("table", {}, ...[["Discovery", S.discovery], ["Validation", S.validation], ["Locked test", S.locked_test]]
+          .map(([k, v]) => el("tr", {}, el("td", {class: "t2"}, k), el("td", {}, (v || []).join(" to "))))))),
+      el("div", {class: "card", style: "overflow-x:auto;margin-top:18px"}, el("table", {}, el("tr", {}, el("th", {}, "Feature"), el("th", {class: "r"}, "Sign"), el("th", {}, "Horizons"), el("th", {}, "Must survive")),
+        ...(P.tests || []).map(t => el("tr", {}, el("td", {}, el("code", {}, t.feature)), el("td", {class: "r"}, (t.expected_sign > 0 ? "+" : t.expected_sign < 0 ? "−" : "0")),
+          el("td", {}, t.horizons.join(", ") + " sessions"), el("td", {class: "t2"}, t.controls.join(", ") || "—"))))))],
+    ["Real study: results", el("div", {},
+      el("h2", {}, "One feature survived, as a same-day effect"),
+      el("p", {class: "lede wide"}, `${L.n_trials || "—"} distinct tests were run on this feature set (every horizon, control set, bucket and attack counts), so a discovery needed |t| ≥ ${L.hurdle_t || 3}. Only the short-exempt share of volume validated; released by the researcher at G5, its same-day version passed the locked 2025 test, about a third weaker than before, while the week and month versions did not.`),
+      el("div", {class: "card", style: "overflow-x:auto"}, el("table", {}, el("tr", {}, el("th", {}, "Finding"), el("th", {}, "Controls"), el("th", {class: "r"}, "Discovery IC"), el("th", {class: "r"}, "Validation IC"), el("th", {class: "r"}, "Locked 2025 IC"), el("th", {}, "Status")),
+        ...obs.filter(o => o.verdict === "informative").map(o => el("tr", {}, el("td", {}, el("code", {}, o.feature), ` h=${o.horizon}`), el("td", {class: "t2", style: "font-size:12px"}, o.controls.join(", ") || "raw"),
+          el("td", {class: "r"}, ict(o.stats)), el("td", {class: "r"}, ict(o.validation)), el("td", {class: "r"}, ict(o.locked_test)),
+          el("td", {}, status(...(ST[o.status] || ["warning", o.status]))))))),
+      el("p", {class: "muted", style: "font-size:12px;margin:10px 0 18px"}, `Not shown: ${obs.filter(o => o.verdict !== "informative").length} pre-registered tests that were not discoveries (all are in the run's report). IC: mean same-date rank correlation with the forward return; t: Newey-West.`),
+      el("div", {class: "grid g2"}, ...((R.figures || {}).short_exempt_ratio || []).map(img)))],
+    ["Critic & costs", el("div", {},
+      el("h2", {}, "Is it real, and is it tradable?"),
+      el("p", {class: "lede wide"}, "Run after the locked test on this study (the Critic was built afterwards), on discovery data only. Verdict by a fixed rule: survived = same sign, at least half the effect kept and |t| ≥ 2; refuted = the sign flips or less than a quarter is left; otherwise inconclusive."),
+      crit.length ? el("div", {class: "card", style: "overflow-x:auto"}, el("table", {}, el("tr", {}, el("th", {}, "Finding"), el("th", {}, "From"), el("th", {}, "Threat"), el("th", {}, "Test"), el("th", {class: "r"}, "Effect kept"), el("th", {}, "Outcome")),
+        ...crit.map(c => { const o = obs[c.target] || {}, t = c.test;
+          return el("tr", {}, el("td", {}, el("code", {}, o.feature), ` h=${o.horizon}`), el("td", {class: "t2"}, c.source), el("td", {class: "t2", style: "font-size:12px"}, c.threat_type.replace(/_/g, " ")),
+            el("td", {class: "t2", style: "font-size:12px"}, t.kind === "add_controls" ? `add ${t.controls.join(", ")}` : t.kind === "subperiod" ? `only ${t.period.join(" to ")}` : `${t.universe.replace(/_/g, " ")}${t.sector ? " " + t.sector : ""}`),
+            el("td", {class: "r"}, c.retention == null ? "—" : pct(c.retention, 0)), el("td", {}, status(OUT[c.outcome] || "warning", c.outcome))); }))) : null,
+      el("p", {style: "font-size:14px;margin-top:14px"}, "Reading: the same-day effect is not refuted, but only about half of it survives without the least liquid third, and about a third among stocks priced at $5 or more; the week and month versions survive every attack (yet failed the locked test)."),
+      costed.length ? el("div", {class: "card", style: "overflow-x:auto;margin-top:18px"}, el("h3", {}, "Cost: the break-even spread"),
+        el("p", {class: "t2", style: "font-size:13px"}, "The finding's long-short quintile portfolio, rebalanced every h sessions. The break-even half-spread is the cost per side that uses up the gross edge; it does not depend on any spread estimate."),
+        el("table", {}, el("tr", {}, el("th", {}, "Finding"), el("th", {}, "Segment"), el("th", {class: "r"}, "Gross bp / period"), el("th", {class: "r"}, "Break-even half-spread")),
+          ...costed.flatMap(o => Object.entries(o.costs).filter(([, k]) => k.gross).map(([seg, k]) => el("tr", {}, el("td", {}, el("code", {}, o.feature), ` h=${o.horizon}`),
+            el("td", {class: "t2"}, seg), el("td", {class: "r"}, `${k.gross.mean_bp >= 0 ? "+" : ""}${k.gross.mean_bp.toFixed(1)}`),
+            el("td", {class: "r"}, k.break_even_half_spread_bp > 0 ? `${k.break_even_half_spread_bp.toFixed(1)} bp` : "no edge"))))),
+        el("p", {class: "muted", style: "font-size:12px;margin:10px 0 0"}, "Net returns and capacity need quoted spreads; with daily returns only, Roll's spread estimate is too noisy for liquid stocks and is not shown.")) : null,
+      el("p", {style: "font-size:14px;margin-top:14px"}, el("strong", {}, "Conclusion: "), "a real but small same-day effect, concentrated in less liquid names, that pays only below about 2–4 bp per side per trade: very likely not tradable. The loop's value here is the negative result, reached with every step on record."))],
+  ];
+  let cur = 0;
+  const bar = el("div", {class: "steps", role: "tablist"}), secs = steps.map(([, n]) => el("div", {class: "step"}, n));
+  const set = i => { cur = i; secs.forEach((x, k) => x.classList.toggle("active", k === i));
+    [...bar.children].forEach((b, k) => b.setAttribute("aria-current", k === i ? "step" : "false")); updateProgress(); };
+  steps.forEach(([n], i) => bar.append(el("button", {role: "tab", onclick: () => set(i)}, el("span", {class: "i"}, i + 1), n)));
+  const ids = PAGES.map(p => p[0]), me = ids.indexOf("mod-predict");
+  const page = el("div", {},
+    el("div", {class: "modhead"}, el("div", {}, el("div", {class: "eyebrow"}, "Research · Predictive EDA (phase B) and the Critic"), el("div", {class: "t2", style: "font-size:15px"}, "Pre-registered tests of frozen features against returns, attacked before any locked test")), bar),
+    ...secs,
+    el("div", {class: "navfoot"}, el("button", {class: "btn", onclick: () => cur > 0 ? set(cur - 1) : go(ids[me - 1])}, "← Back"),
+      el("span", {class: "muted", style: "font-size:12px"}, el("span", {class: "kbd"}, "←"), " ", el("span", {class: "kbd"}, "→"), "  to navigate"),
+      el("button", {class: "btn primary", onclick: () => cur < steps.length - 1 ? set(cur + 1) : (ids[me + 1] ? go(ids[me + 1]) : go("mission"))}, "Next →")));
+  page.stepper = {get cur() { return cur; }, n: steps.length, set};
+  set(0);
+  return page;
+}
+
+function modelPanels(M) {
+  const MD = M.models || {}, ms = Object.keys(MD);
+  if (!ms.length) return null;
+  const label = m => m.replace("qwen2.5-", "").toUpperCase();
+  const nl = leakyOf(M).length;
+  const panels = [["leaks_found", `Leaks found (of ${nl})`, nl, v => v.toFixed(1)], ["fixes_verified", `Fixes verified (of ${nl})`, nl, v => v.toFixed(1)],
+                  ["false_alarms", "False alarms (of 1)", 1, v => v.toFixed(1)], ["semantic", "Field meanings correct", 1, v => pct(v, 0)],
+                  ["rule", "Tradable-time rule correct", 1, v => pct(v, 0)], ["minutes_per_run", "Minutes per audit", null, v => v.toFixed(1)]];
+  return el("div", {class: "grid g3"}, ...panels.map(([k, title, max, fmt]) => {
+    const vals = ms.map(m => MD[m].summary[k]), top = max ?? (Math.max(...vals.map(v => v ? v.max : 0)) * 1.15 || 1);
+    const W = 360, H = 190, L = 44, R = 16, T = 18, B = 32, xs = i => L + (i + 0.5) * (W - L - R) / ms.length, ys = v => T + (1 - v / top) * (H - T - B);
+    const svg = s("svg", {viewBox: `0 0 ${W} ${H}`, width: "100%", role: "img", "aria-label": `${title} by model size`});
+    [0, top / 2, top].forEach(v => { svg.append(s("line", {class: "grid", x1: L, x2: W - R, y1: ys(v), y2: ys(v)})); svg.append(svgText(L - 6, ys(v) + 4, fmt(v), {"text-anchor": "end", class: "tm num", "font-size": 10})); });
+    ms.forEach((m, i) => {
+      const a = vals[i]; svg.append(svgText(xs(i), H - 10, label(m), {"text-anchor": "middle", class: "t1", "font-size": 12, "font-weight": 600}));
+      if (!a) return;
+      const g = s("g", {}, s("rect", {x: xs(i) - 24, y: T, width: 48, height: H - T - B, fill: "transparent"}),
+        s("line", {x1: xs(i), x2: xs(i), y1: ys(a.min), y2: ys(a.max), stroke: "var(--text-2)", "stroke-width": 2}),
+        s("circle", {cx: xs(i), cy: ys(a.mean), r: 6, fill: "var(--seq)", stroke: "var(--card)", "stroke-width": 2}));
+      hover(g, [[fmt(a.mean), `${label(m)} · mean of ${MD[m].n_seeds} runs`], [`range ${fmt(a.min)}–${fmt(a.max)}`, ""]]);
+      svg.append(g);
+      svg.append(svgText(xs(i) + 10, ys(a.mean) + 4, fmt(a.mean), {class: "t1", "font-size": 11}));
+    });
+    svg.append(s("line", {class: "axis", x1: L, x2: W - R, y1: H - B, y2: H - B}));
+    return el("div", {class: "card", style: "padding:18px"}, el("h4", {style: "margin-bottom:6px"}, title), svg);
+  }));
+}
+
+function oosBlock() {
+  const O = D.oos; if (!O || !F4) return null;
+  const dev = F4.batches[F4.batches.length - 1].scores, q = O.quarter.toUpperCase().replace("Q", " Q");
+  const row = (name, sc, gold) => {
+    const leaky = F4.variants.filter(v => gold[v]?.leak ?? F4.gold[v].leak);
+    const found = leaky.filter(v => sc[v]?.leak?.detected && sc[v]?.leak?.line_correct).length, fixed = leaky.filter(v => sc[v]?.leak?.patch_verified).length;
+    const rule = Object.values(sc).map(r => r.rule_correctness?.overall).filter(x => x != null), sem = Object.values(sc).map(r => r.semantic_accuracy);
+    return el("tr", {}, el("td", {}, name), el("td", {class: "r"}, `${found}/${leaky.length}`), el("td", {class: "r"}, `${fixed}/${leaky.length}`),
+      el("td", {class: "r"}, sc.clean ? String(sc.clean.leak.n_findings || 0) : "–"), el("td", {class: "r"}, pct(sum(sem) / (sem.length || 1), 0)),
+      el("td", {class: "r"}, rule.length ? pct(sum(rule) / rule.length) : "–"),
+      el("td", {class: "r"}, leaky.map(v => `${pct(sc[v]?.leak?.impact_estimate)} / ${pct((gold[v] || F4.gold[v]).true_lookahead.share_before_tradable)}`).join(" · ")));
+  };
+  const ntd = Object.values(O.scores).map(r => r.rule_correctness?.non_trading_day).filter(x => x != null);
+  return el("div", {class: "card", style: "overflow-x:auto"},
+    el("h3", {}, `Out-of-sample: the unchanged audit on ${q}`),
+    el("p", {style: "font-size:14px"}, `The agents were developed on 2025 Q1. ${q} is new data with different leak rates, and includes Good Friday (EDGAR open, NYSE closed): a non-trading-day case never seen in development.${ntd.length ? ` Rule accuracy on non-trading-day filings: ${pct(sum(ntd) / ntd.length)}.` : ""}`),
+    el("table", {}, el("tr", {}, ...["Quarter", "Leaks found", "Fixes verified", "False alarms", "Field meanings", "Rule", "Impact estimate / true (per leak)"].map((h, i) => el("th", {class: i ? "r" : ""}, h))),
+      row(`2025 Q1 (development, ${blabel(F4.batches[F4.batches.length - 1])})`, dev, F4.gold), row(`${q} (out-of-sample)`, O.scores, O.gold)));
+}
+
+const blabel = b => b.label || b.name;
+function resultsStep(M) {
+  const sc = ALL[MODS.indexOf(M)], first = M.batches[0], last = M.batches[M.batches.length - 1];
+  const up = (c, p) => p == null ? null : Math.abs(c - p) < 1e-9 ? `same as ${blabel(first)}` : `${c > p ? "▲" : "▼"} from ${pct(p, 0)} in ${blabel(first)}`;
+  const nq = Object.values(last.scores).map(r => r.semantic?.length).find(Boolean);
+  const mp = modelPanels(M), oos = M.id === "form4" ? oosBlock() : null;
+  return el("div", {},
+    el("h2", {}, "Measured against exact ground truth, not demoed"),
+    el("p", {class: "lede"}, `${M.variants.length} pipelines, ${leakyOf(M).length} with a planted leak and one clean control. ${M.truth}`),
+    el("div", {class: "grid g3"},
+      tile("Leaks found at the exact line", `${sc.caught} / ${sc.nLeaky}`, sc.exact ? "impact estimated exactly for every leak" : sc.meanErr != null ? `mean impact error ${pct(sc.meanErr)}` : null),
+      tile("Fixes verified by re-running", `${sc.verified} / ${sc.nLeaky}`, "look-ahead drops to 0% after each patch"),
+      tile("False alarms on the clean pipeline", fmtInt(sc.fp), "the negative control stays clean"),
+      tile("Field meanings correct", pct(sc.sem, 0), up(sc.sem, sc.semPrev), sc.semPrev != null && sc.sem > sc.semPrev),
+      tile("Availability rule exactly right", pct(sc.rule, 0), up(sc.rule, sc.rulePrev), sc.rulePrev != null && sc.rule > sc.rulePrev),
+      tile("Cost per audit", sc.mins != null ? `${sc.mins.toFixed(0)} min` : "–", sc.calls != null ? `${sc.calls.toFixed(0)} LLM calls on a local open-weights model` : null)),
+    M.batch_notes && M.batches.length > 1 ? el("div", {class: "card", style: "margin-top:18px"},
+      el("h3", {}, `From ${blabel(first)} to ${blabel(last)}`),
+      el("p", {style: "font-size:14px"}, M.batch_notes.summary),
+      el("table", {}, el("tr", {}, el("th", {}, `Problem seen in ${blabel(first)}`), el("th", {}, `Fix in ${blabel(last)}`)),
+        ...M.batch_notes.changes.map(([a, b]) => el("tr", {}, el("td", {}, a), el("td", {class: "t2"}, b))))) : null,
+    (mp || oos) ? el("div", {class: "section"}, el("div", {class: "eyebrow"}, "Robustness"),
+      el("h2", {}, oos ? "Does it hold up with smaller models and on unseen data?" : "Does it hold up with smaller models?"),
+      mp ? el("div", {}, el("p", {class: "lede"}, `The same audit with open-weight Qwen2.5 models at three sizes, ${Object.values(M.models)[0].n_seeds} runs each at temperature 0.3: same prompts, tools, budgets and 4-bit quantization. Dot = mean, line = range across runs.`), mp) : null,
+      oos ? el("div", {style: "margin-top:18px"}, oos) : null) : null,
+    el("div", {class: "card", style: "margin-top:28px;overflow-x:auto"}, el("h4", {}, "Every run"),
+      el("p", {style: "font-size:13px"}, `All runs: Qwen2.5-72B-Instruct, temperature 0, gate G1 answered by an oracle.${M.batches.length > 1 ? ` ${blabel(first)} = first complete build; ${blabel(last)} = with the fixes above.` : ""}`),
+      runTable(M)),
+    el("p", {class: "muted", style: "font-size:13px;margin-top:14px"}, `Field meanings are graded by keyword on ${nq || "–"} questions. ` +
+      (M.id === "form4" ? "The availability rule is checked on a stratified sample of 500 filings." : "The availability rule is checked on every observation since 2019.")));
+}
+function runTable(M) {
+  const cols = ["Field meanings", "Rule", "Gate G1", "Leak found", "Right line", "Fix verified", "LLM calls", "Minutes"];
+  const t = el("table", {}, el("tr", {}, el("th", {}, "Build"), el("th", {}, "Pipeline"), ...cols.map(c => el("th", {class: "r"}, c))));
+  M.batches.forEach(b => M.variants.forEach(v => { const r = b.scores[v]; if (!r) return; const cost = Object.values(r.cost || {}), L = M.gold[v].leak;
+    t.append(el("tr", {}, el("td", {}, blabel(b)), el("td", {}, el("span", {class: "key", style: `background:${vcolor(M, v)}`}), M.short[v]),
+      ...[pct(r.semantic_accuracy, 0), pct(r.rule_correctness?.overall), r.g1?.approved ? "approved" : r.g1 ? "corrected" : "–", L ? (r.leak?.detected ? "yes" : "no") : (r.leak?.n_findings ? "false alarm" : "—"),
+          L ? (r.leak?.line_correct ? "yes" : "no") : "—", L ? (r.leak?.patch_verified ? "yes" : "no") : "—",
+          fmtInt(sum(cost.map(c => c.llm_calls || 0))), (sum(cost.map(c => c.wall_s || 0)) / 60).toFixed(1)].map(x => el("td", {class: "r"}, x)))); }));
+  return t;
+}
+
+
+function pageExplorer() {
+  const wrap = el("div", {class: "stack"});
+  const mtabs = el("div", {class: "tabs"}), tabs = el("div", {class: "tabs"}), body = el("div", {class: "stack"});
+  let M = MODS[0];
+  const show = v => {
+    [...tabs.children].forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === v)));
+    const run = M.runs[v]; body.replaceChildren();
+    if (!run) { body.append(el("div", {class: "card"}, "No run for this pipeline in this batch.")); return; }
+    const sc = run.score, lk = sc?.leak || {};
+    body.append(el("div", {class: "card"}, el("h4", {}, `Replay · ${run.meta.run_id}`), Replay(run).el));
+    body.append(el("div", {class: "grid g2"},
+      el("div", {class: "card"}, el("h4", {}, "Score"), el("table", {},
+        ...[["Status", run.meta.status], ["Field meanings", pct(sc?.semantic_accuracy, 0)], ["Availability rule", pct(sc?.rule_correctness?.overall)],
+            ["Gate G1", sc?.g1?.approved ? "approved" : "corrected"], ["Leak in ground truth", M.gold[v].leak ? `yes, line ${M.gold[v].line}` : "no"], ["Detected", String(lk.detected)],
+            ["Line / type correct", `${lk.line_correct ?? "–"} / ${lk.type_correct ?? "–"}`], ["Impact estimate / true", `${lk.impact_estimate ?? "–"} / ${lk.impact_true ?? "–"}`],
+            ["Patch verified", String(lk.patch_verified ?? "–")]].map(([a, b]) => el("tr", {}, el("td", {class: "t2"}, a), el("td", {}, b))))),
+      el("div", {class: "card"}, el("h4", {}, "Cost by agent"), el("table", {},
+        el("tr", {}, ...["Agent", "LLM calls", "Tokens in", "Tokens out", "Tool calls", "Seconds"].map((h, i) => el("th", {class: i ? "r" : ""}, h))),
+        ...Object.entries(sc?.cost || {}).map(([a, c]) => el("tr", {}, el("td", {}, AGENTS[a]?.[1] || a), ...[c.llm_calls, c.tokens_in, c.tokens_out, c.tool_calls, c.wall_s].map(x => el("td", {class: "r"}, fmtInt(x)))))))));
+    body.append(el("div", {class: "card"}, el("h4", {}, "Pipeline source"), codeView(M, run, 60),
+      run.diff ? el("details", {class: "data"}, el("summary", {}, "Agent's patch as a unified diff"), el("pre", {}, run.diff)) : null));
+    body.append(el("div", {class: "card"}, el("h4", {}, "Shared state (validated JSON)"),
+      ...Object.entries(run.state).map(([k, x]) => el("details", {class: "data"}, el("summary", {}, k), el("pre", {}, JSON.stringify(x, null, 1))))));
+  };
+  const EXTRA = [];
+  if (D.research && D.research.events) EXTRA.push({id: "x-research", name: "Data Research", order: ["profiler", "overview", "data_research"],
+    runs: [["Real FINRA data", {events: D.research.events, state: {dataset_card_research: D.research.brief && {observations: D.research.brief.observations, capability: D.research.brief.capability, cleaning: D.research.brief.cleaning}}}]]});
+  if (D.eda && D.eda.events) EXTRA.push({id: "x-eda", name: "Research EDA", order: ["research_eda_survey", "research_eda_ideas", "g2", "research_eda", "g3"],
+    runs: [["Real FINRA data", {events: D.eda.events, state: {candidate_feature_set: {candidates: D.eda.report.candidates, wrapup: D.eda.report.wrapup}}}],
+           ...(D.eda.showcase && D.eda.showcase.events ? [["Planted benchmark (repeat 1)", {events: D.eda.showcase.events, state: {candidate_feature_set: {candidates: D.eda.showcase.candidates}}}]] : [])]});
+  const showExtra = (X, k) => {
+    [...tabs.children].forEach((b, i) => b.setAttribute("aria-pressed", String(i === k)));
+    const [label, run] = X.runs[k], evs = run.events, cost = {};
+    evs.forEach(e => { if (!e.agent) return; const c = cost[e.agent] ||= {llm: 0, tin: 0, tout: 0, tools: 0, s: 0};
+      if (e.type === "llm") { c.llm++; c.tin += e.tokens_in || 0; c.tout += e.tokens_out || 0; }
+      if (e.type === "tool") c.tools++; if (e.type === "agent_end") c.s = e.wall_s || 0; });
+    body.replaceChildren(
+      el("div", {class: "card"}, el("h4", {}, `Replay · ${label}`), Replay(run, X.order).el),
+      el("div", {class: "grid g2"},
+        el("div", {class: "card"}, el("h4", {}, "Cost by agent"), el("table", {},
+          el("tr", {}, ...["Agent", "LLM calls", "Tokens in", "Tokens out", "Tool calls", "Seconds"].map((h, i) => el("th", {class: i ? "r" : ""}, h))),
+          ...Object.entries(cost).map(([a, c]) => el("tr", {}, el("td", {}, AGENTS[a]?.[1] || a), ...[c.llm, c.tin, c.tout, c.tools, c.s].map(x => el("td", {class: "r"}, fmtInt(x))))))),
+        el("div", {class: "card"}, el("h4", {}, "Shared state (validated JSON)"),
+          ...Object.entries(run.state).map(([k, x]) => el("details", {class: "data"}, el("summary", {}, k), el("pre", {}, JSON.stringify(x, null, 1)))))));
+  };
+  const pickExtra = X => { [...mtabs.children].forEach(b => b.setAttribute("aria-pressed", String(b.dataset.m === X.id)));
+    tabs.replaceChildren(...X.runs.map(([label], k) => el("button", {onclick: () => showExtra(X, k)}, label)));
+    showExtra(X, 0); };
+  const pick = m => { M = m; [...mtabs.children].forEach(b => b.setAttribute("aria-pressed", String(b.dataset.m === m.id)));
+    tabs.replaceChildren(...M.variants.map(v => el("button", {"data-v": v, onclick: () => show(v)}, el("span", {class: "key", style: `background:${vcolor(M, v)}`}), M.short[v])));
+    show(M.variants.find(v => M.runs[v]) || M.variants[0]); };
+  EXTRA.filter(X => X.id === "x-research").forEach(X => mtabs.append(el("button", {"data-m": X.id, onclick: () => pickExtra(X)}, X.name)));
+  MODS.forEach(m => mtabs.append(el("button", {"data-m": m.id, onclick: () => pick(m)}, m.name)));
+  EXTRA.filter(X => X.id === "x-eda").forEach(X => mtabs.append(el("button", {"data-m": X.id, onclick: () => pickExtra(X)}, X.name)));
+  wrap.append(el("div", {}, el("div", {class: "eyebrow"}, "Run explorer"), el("h2", {}, "Every step of every run"),
+                 el("p", {class: "lede"}, "For research discussion: replay each run step by step, and inspect the agents' structured outputs, costs and, for audits, the exact code they changed.")), mtabs, tabs, body);
+  pick(M);
+  return wrap;
+}
+
+function navfoot(prev, next, nextLabel) {
+  return el("div", {class: "navfoot"}, prev ? el("button", {class: "btn", onclick: () => go(prev)}, "← Back") : el("span"),
+    el("span", {class: "muted", style: "font-size:12px"}, el("span", {class: "kbd"}, "←"), " ", el("span", {class: "kbd"}, "→"), "  to navigate"),
+    next ? el("button", {class: "btn primary", onclick: () => go(next)}, `${nextLabel} →`) : el("span"));
+}
+
+/* ================= shell ================= */
+const PAGES = [["mission", "Mission", pageMission], ["framework", "Framework", pageFramework],
+               ...(D.research ? [["mod-research", "Data Research", pageResearch]] : []),
+               ...MODS.map(m => [`mod-${m.id}`, m.name, () => pageModule(m)]),
+               ...(D.eda ? [["mod-eda", "Research EDA", pageEDA]] : []),
+               ...(D.predict ? [["mod-predict", "Predictive EDA", pagePredict]] : [])];
+const MOD_STEPS = 5;                                      // problem, agents, evidence, catch, results
+const app = document.getElementById("app"), nav = document.getElementById("nav");
+const built = {};
+let current = "mission";
+PAGES.forEach(([id, label]) => nav.append(el("button", {"data-p": id, onclick: () => go(id)}, label)));
+function page(id) { if (!built[id]) { const f = id === "explorer" ? pageExplorer : PAGES.find(p => p[0] === id)[2]; built[id] = el("div", {class: "page"}, f()); } return built[id]; }
+const stepperOf = id => id.startsWith("mod-") ? page(id).firstChild.stepper : null;
+function go(id) {
+  current = id; hideTip();
+  app.replaceChildren(page(id)); page(id).classList.add("active");
+  [...nav.children].forEach(b => b.setAttribute("aria-current", b.dataset.p === id ? "page" : "false"));
+  window.scrollTo({top: 0}); updateProgress();
+}
+function updateProgress() {
+  const seq = [];
+  PAGES.forEach(([id]) => { if (id.startsWith("mod-")) for (let i = 0; i < (id === "mod-eda" ? 6 : id === "mod-predict" ? 5 : MOD_STEPS); i++) seq.push(`${id}:${i}`); else seq.push(id); });
+  const st = current.startsWith("mod-") && built[current] ? built[current].firstChild.stepper : null;
+  const i = seq.indexOf(current.startsWith("mod-") ? `${current}:${st ? st.cur : 0}` : current);
+  document.getElementById("progress").style.width = i < 0 ? "0" : `${((i + 1) / seq.length) * 100}%`;
+}
+document.getElementById("brand").onclick = () => go("mission");
+document.getElementById("btn-explorer").onclick = () => go("explorer");
+document.addEventListener("keydown", e => {
+  if ((e.target instanceof Element && e.target.closest("input,select,textarea")) || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+  const fwd = e.key === "ArrowRight", ids = PAGES.map(p => p[0]), i = ids.indexOf(current);
+  const st = stepperOf(current);
+  if (st) { if (fwd && st.cur < st.n - 1) return st.set(st.cur + 1); if (!fwd && st.cur > 0) return st.set(st.cur - 1); }
+  if (i < 0) return; const j = i + (fwd ? 1 : -1);
+  if (j >= 0 && j < ids.length) { go(ids[j]); const s2 = stepperOf(ids[j]); if (s2 && !fwd) s2.set(s2.n - 1); }
+});
+document.getElementById("foot-right").textContent = "Replay of recorded runs";
+go("mission");
+</script>
+</body>
+</html>

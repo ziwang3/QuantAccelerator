@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-label="QuantAccelerator: a multi-agent helper for quant research">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6aa8ff"/><stop offset="1" stop-color="#3ee0c5"/></linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0" r="0.75"><stop offset="0" stop-color="#6aa8ff" stop-opacity="0.22"/><stop offset="1" stop-color="#6aa8ff" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="1200" height="300" rx="22" fill="#070b16"/>
+  <rect width="1200" height="300" rx="22" fill="url(#glow)"/>
+  <g font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif" text-anchor="middle">
+    <text x="600" y="128" font-size="66" font-weight="800" fill="#eaf0fa">Quant<tspan fill="url(#g)">Accelerator</tspan></text>
+    <text x="600" y="176" font-size="25" fill="#a8b3c7">A multi-agent helper for quant research</text>
+    <g font-size="17" font-weight="600">
+      <rect x="341" y="210" width="130" height="38" rx="19" fill="#0f1729" stroke="#26324d"/><text x="406" y="235" fill="#bcd6ff">Understand</text>
+      <rect x="485" y="210" width="100" height="38" rx="19" fill="#0f1729" stroke="#26324d"/><text x="535" y="235" fill="#bcd6ff">Trust</text>
+      <rect x="599" y="210" width="100" height="38" rx="19" fill="#0f1729" stroke="#26324d"/><text x="649" y="235" fill="#bcd6ff">Audit</text>
+      <rect x="713" y="210" width="146" height="38" rx="19" fill="#0f1729" stroke="#26324d"/><text x="786" y="235" fill="#bcd6ff">Research</text>
+    </g>
+  </g>
+</svg>
